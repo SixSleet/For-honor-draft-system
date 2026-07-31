@@ -355,6 +355,41 @@ input::placeholder {
     animation: fadeIn .4s ease both;
 }
 
+/* Lobby code — click to copy (see app.js's copyToClipboard()) */
+#lobby {
+    position: relative;
+    display: inline-flex;
+    cursor: pointer;
+    transition: color .15s ease;
+}
+
+#lobby:hover {
+    color: var(--gold);
+}
+
+#lobby .copyIcon {
+    margin-left: 8px;
+    font-size: 15px;
+    opacity: .7;
+}
+
+#lobby.copied::after {
+    content: "Copied!";
+    position: absolute;
+    left: 50%;
+    top: -30px;
+    transform: translateX(-50%);
+    background: var(--success);
+    color: #042315;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    animation: fadeInDown .2s ease both;
+}
+
 .lobbyControls {
     display: flex;
     justify-content: center;
@@ -394,6 +429,36 @@ input::placeholder {
 
 .captainStatus.redSide {
     border-color: rgba(226, 121, 15, .5);
+}
+
+/* A captain's row glows green + gets a "Ready" badge once they've
+   readied up (see app.js's renderCaptainSummary()/renderReadyUpButton()) */
+.captainStatus.ready {
+    border-color: var(--success);
+    box-shadow: 0 0 0 1px var(--success), 0 0 18px rgba(62, 207, 142, .35);
+}
+
+.readyBadge {
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--success);
+    color: #042315;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+#readyUp {
+    margin-top: 10px;
+}
+
+#readyUp.readied {
+    background: linear-gradient(135deg, var(--success), #1f8f61);
+    border-color: #1f8f61;
+    color: #042315;
 }
 
 .banConfig {
@@ -482,6 +547,25 @@ input::placeholder {
     text-transform: uppercase;
     letter-spacing: 3px;
     color: #9a9fa8;
+}
+
+/* Per-turn countdown (see app.js's tickTimer()) — empty/no layout
+   impact whenever the current phase isn't timed. */
+.turnTimer {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 15px;
+    letter-spacing: 1px;
+    color: #d8d4c8;
+}
+
+.turnTimer:empty {
+    display: none;
+}
+
+.turnTimer.lowTime {
+    color: var(--danger);
+    animation: pulseBan 1s ease-in-out infinite;
 }
 
 .turnBanner.blueSide {
@@ -1280,6 +1364,18 @@ input::placeholder {
 .banFlashOverlay.pick .banFlashText {
     color: var(--success);
     text-shadow: 0 0 40px rgba(62, 207, 142, .8), 0 0 90px rgba(62, 207, 142, .5);
+}
+
+/* Match-win flash (see app.js's maybeFlashMatchWin()) — colored by the
+   winning team instead of the plain ban/pick red/green. */
+.banFlashOverlay.winBlue .banFlashText {
+    color: var(--blue-bright);
+    text-shadow: 0 0 40px rgba(77, 140, 255, .8), 0 0 90px rgba(77, 140, 255, .5);
+}
+
+.banFlashOverlay.winRed .banFlashText {
+    color: var(--orange-bright);
+    text-shadow: 0 0 40px rgba(255, 154, 51, .8), 0 0 90px rgba(255, 154, 51, .5);
 }
 
 .banFlashOverlay.show .banFlashText {

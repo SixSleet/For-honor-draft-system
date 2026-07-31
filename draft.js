@@ -7,13 +7,22 @@ import {
     Timestamp
 } from "./firebase.js";
 
-import { TEAM_SIZE, INACTIVITY_MS, FINISHED_TTL_MS } from "./config.js";
+import { TEAM_SIZE, INACTIVITY_MS, FINISHED_TTL_MS, TURN_TIME_MS } from "./config.js";
 import { getDraftOrder } from "./draftOrder.js";
 import { getMapVetoOrder } from "./mapVeto.js";
 import { createInitialMatch, resetGameState } from "./draftState.js";
 
 function inactivityExpiry() {
     return Timestamp.fromMillis(Date.now() + INACTIVITY_MS);
+}
+
+// Deadline for the CURRENT active player's ban/pick (character draft) or
+// map ban/pick (veto and between-game map picks). Refreshed every time
+// the active turn advances; app.js counts it down for everyone and, once
+// it passes, has the active captain's own client auto-select a random
+// available option so the match can't stall forever on an idle captain.
+function turnExpiry() {
+    return Timestamp.fromMillis(Date.now() + TURN_TIME_MS);
 }
 
 /**
@@ -27,6 +36,7 @@ export async function createDraft(lobby, bluePlayers, redPlayers, blueCaptain, r
 
     await updateDoc(doc(db, "drafts", lobby), {
         ...initialMatch,
+        turnDeadline: turnExpiry(),
         expiresAt: inactivityExpiry()
     });
 }
@@ -145,6 +155,7 @@ export async function confirmAction(lobby, playerID) {
         bans,
         picks,
         pendingAction: null,
+        turnDeadline: turnExpiry(),
         expiresAt: inactivityExpiry()
     });
 }
@@ -219,6 +230,7 @@ export async function confirmMapAction(lobby, playerID) {
             pendingMapAction: null,
             status: "draft",
             ...resetGameState(draft.blueCaptain, draft.banCount ?? 1),
+            turnDeadline: turnExpiry(),
             expiresAt: inactivityExpiry()
         });
         return;
@@ -244,6 +256,7 @@ export async function confirmMapAction(lobby, playerID) {
             pendingMapAction: null,
             status: "draft",
             ...resetGameState(draft.blueCaptain, draft.banCount ?? 1),
+            turnDeadline: turnExpiry(),
             expiresAt: inactivityExpiry()
         });
         return;
@@ -256,6 +269,7 @@ export async function confirmMapAction(lobby, playerID) {
         activeTeam: next.team,
         activePlayer: next.team === "Blue" ? draft.blueCaptain : draft.redCaptain,
         pendingMapAction: null,
+        turnDeadline: turnExpiry(),
         expiresAt: inactivityExpiry()
     });
 }
@@ -311,6 +325,7 @@ export async function declareGameWinner(lobby, winnerTeam) {
         activeTeam: loserTeam,
         activePlayer: loserTeam === "Blue" ? draft.blueCaptain : draft.redCaptain,
         pendingMapAction: null,
+        turnDeadline: turnExpiry(),
         expiresAt: inactivityExpiry()
     });
 }

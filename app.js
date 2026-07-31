@@ -55,6 +55,16 @@ let lastMapBansCount = 0;
 let lastMapPicksCount = 0;
 let matchAnimationsReady = false;
 
+// Latest draft doc from listenDraft(), kept around so the timer's
+// setInterval (which runs independently of Firestore snapshots) always
+// has something current to count down against.
+let lastDraftData = null;
+
+// Guards the auto-pick-on-timeout logic the same way lastPhaseFlashKey
+// guards the flash: keyed by status+game+turn, so a 500ms timer tick
+// can never fire the random auto-pick twice for the same step.
+let lastAutoPickKey = null;
+
 // Tracks the current match status ("lobby" | "mapVeto" | "draft" |
 // "gameResult" | "mapPick" | "finished") so the captain-selection UI
 // knows when to hide itself.
@@ -84,6 +94,31 @@ let lastNeutral = [];
 
 function generateCode() {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+// navigator.clipboard needs a secure context (https, or localhost) — falls
+// back to a hidden textarea + execCommand for anything else (e.g. a plain
+// http:// LAN address) so clicking the lobby code always works.
+function copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text).catch(() => {});
+    }
+
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+
+    try {
+        document.execCommand("copy");
+    } catch {
+        // Nothing more we can do — the click still no-ops harmlessly.
+    }
+
+    document.body.removeChild(ta);
+    return Promise.resolve();
 }
 
 function inactivityExpiry() {
@@ -255,6 +290,7 @@ function setTurnBanner(team, title, subtitle, phaseType) {
     banner.innerHTML = `
         <span class="turnTeam">${title}</span>
         ${subtitle ? `<span class="turnPhase">${subtitle}</span>` : ""}
+        <span class="turnTimer" id="turnTimer"></span>
     `;
 }
 
@@ -290,7 +326,7 @@ function teamDisplayName(data, team) {
 
 let lastPhaseFlashKey = null;
 
-function showPhaseFlash(text, kind) {
+function showPhaseFlash(text, kind, holdMs = 700) {
     return new Promise(resolve => {
         const overlay = document.getElementById("banFlashOverlay");
         const text_ = document.getElementById("banFlashText");
@@ -310,7 +346,7 @@ function showPhaseFlash(text, kind) {
                 overlay.hidden = true;
                 resolve();
             }, 300);
-        }, 700);
+        }, holdMs);
     });
 }
 
@@ -328,6 +364,105 @@ function maybeFlashPhase(draft, kind) {
     lastPhaseFlashKey = key;
 
     return showPhaseFlash(kind === "ban" ? "🚫 BAN" : "⚔ PICK", kind);
+}
+
+// Big victory announcement, once per match, the instant the whole
+// best-of-N match is decided (not per-game — see declareGameWinner's
+// "finished" transition). Reuses the same flash overlay, colored by the
+// winning team, held longer than a plain ban/pick flash since it's the
+// biggest moment of the match.
+let matchWinFlashShown = false;
+
+function maybeFlashMatchWin(winnerTeam, winnerName) {
+    if (matchWinFlashShown) return Promise.resolve();
+
+    matchWinFlashShown = true;
+
+    return showPhaseFlash(`🏆 ${winnerName.toUpperCase()} WINS!`, winnerTeam === "Blue" ? "winBlue" : "winRed", 1400);
+}
+
+// ---------------------------------------------------------------------
+// Per-turn countdown — draft.turnDeadline (set by draft.js on every turn
+// advance) is the single source of truth shared by every client. Each
+// client independently counts it down locally and, if IT is the active
+// captain once the deadline passes, auto-selects a random available
+// character/map on their own behalf so the match can't stall forever.
+// ---------------------------------------------------------------------
+
+function isTimedPhase(draft) {
+    return !!draft && (draft.status === "draft" || draft.status === "mapVeto" || draft.status === "mapPick");
+}
+
+function allCharacterNames() {
+    return charactersByFaction.flatMap(f => f.heroes);
+}
+
+function tickTimer() {
+    const draft = lastDraftData;
+    const timerEl = document.getElementById("turnTimer");
+
+    if (!timerEl) return;
+
+    if (!isTimedPhase(draft) || !draft.turnDeadline) {
+        timerEl.textContent = "";
+        timerEl.classList.remove("lowTime");
+        return;
+    }
+
+    const msLeft = draft.turnDeadline.toMillis() - Date.now();
+    const secLeft = Math.max(0, Math.ceil(msLeft / 1000));
+    const mm = Math.floor(secLeft / 60);
+    const ss = String(secLeft % 60).padStart(2, "0");
+
+    timerEl.textContent = `⏱ ${mm}:${ss}`;
+    timerEl.classList.toggle("lowTime", secLeft <= 10);
+
+    if (msLeft <= 0) {
+        autoResolveTimeout(draft);
+    }
+}
+
+setInterval(tickTimer, 500);
+
+// Fires once per distinct timed step (same key shape as maybeFlashPhase).
+// Only the client that IS the active captain actually performs the
+// auto-pick — everyone else just watches the same countdown hit zero,
+// so there's no race between multiple clients both trying to act.
+async function autoResolveTimeout(draft) {
+    const key = `${draft.status}:${draft.gameNumber ?? 0}:${draft.turn ?? 0}`;
+
+    if (key === lastAutoPickKey) return;
+    lastAutoPickKey = key;
+
+    if (draft.activePlayer !== playerID) return;
+
+    if (draft.status === "draft") {
+        const used = new Set([
+            ...draft.bans.map(b => b.character),
+            ...draft.picks.map(p => p.character)
+        ]);
+        const available = allCharacterNames().filter(c => !used.has(c));
+
+        if (!available.length) return;
+
+        const choice = available[Math.floor(Math.random() * available.length)];
+
+        await selectCharacter(currentLobby, playerID, choice);
+        await confirmAction(currentLobby, playerID);
+    } else {
+        const used = new Set([
+            ...(draft.mapBans || []).map(b => b.map),
+            ...(draft.mapHistory || []).map(h => h.map)
+        ]);
+        const available = maps.filter(m => !used.has(m));
+
+        if (!available.length) return;
+
+        const choice = available[Math.floor(Math.random() * available.length)];
+
+        await selectMap(currentLobby, playerID, choice);
+        await confirmMapAction(currentLobby, playerID);
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -410,7 +545,9 @@ function openLobby(code) {
     document.getElementById("draft").hidden = false;
     document.getElementById("leaveLobby").hidden = false;
 
-    document.getElementById("lobby").innerHTML = "Lobby: " + code;
+    const lobbyEl = document.getElementById("lobby");
+    lobbyEl.innerHTML = `Lobby: <strong>${code}</strong> <span class="copyIcon">📋</span>`;
+    lobbyEl.title = "Click to copy the lobby code";
 
     showPlayerBadge();
     window.scrollTo(0, 0);
@@ -419,6 +556,17 @@ function openLobby(code) {
     listenLobby(code);
     listenDraft(code, renderDraft);
 }
+
+document.getElementById("lobby").onclick = () => {
+    if (!currentLobby) return;
+
+    copyToClipboard(currentLobby);
+
+    const lobbyEl = document.getElementById("lobby");
+    lobbyEl.classList.add("copied");
+    clearTimeout(lobbyEl._copyResetTimeout);
+    lobbyEl._copyResetTimeout = setTimeout(() => lobbyEl.classList.remove("copied"), 1200);
+};
 
 // ---------------------------------------------------------------------
 // Lobby state
@@ -511,13 +659,43 @@ function renderCaptainSummary(lobby, blue, red) {
     const blueCaptainName = blue.find(p => p.id === lobby?.blueCaptain)?.name;
     const redCaptainName = red.find(p => p.id === lobby?.redCaptain)?.name;
 
-    document.getElementById("blueCaptain").innerHTML = lobby?.blueCaptain
-        ? `🔵 ${blueCaptainName || "Captain"} <span class="crown">👑</span>`
-        : "🔵 No Captain";
+    const blueEl = document.getElementById("blueCaptain");
+    const redEl = document.getElementById("redCaptain");
 
-    document.getElementById("redCaptain").innerHTML = lobby?.redCaptain
-        ? `🔴 ${redCaptainName || "Captain"} <span class="crown">👑</span>`
+    blueEl.innerHTML = lobby?.blueCaptain
+        ? `🔵 ${blueCaptainName || "Captain"} <span class="crown">👑</span>${lobby.blueReady ? '<span class="readyBadge">Ready</span>' : ""}`
+        : "🔵 No Captain";
+    blueEl.classList.toggle("ready", !!(lobby?.blueCaptain && lobby.blueReady));
+
+    redEl.innerHTML = lobby?.redCaptain
+        ? `🔴 ${redCaptainName || "Captain"} <span class="crown">👑</span>${lobby.redReady ? '<span class="readyBadge">Ready</span>' : ""}`
         : "🔴 No Captain";
+    redEl.classList.toggle("ready", !!(lobby?.redCaptain && lobby.redReady));
+
+    renderReadyUpButton(lobby);
+}
+
+// The one "Ready Up" button is shared by whichever captain is viewing —
+// it always shows how many of the two captains (0/1/2) have readied so
+// far, and toggles the VIEWER's own team's readiness. Hidden for anyone
+// who isn't currently a captain, or once the match has started.
+function renderReadyUpButton(lobby) {
+    const btn = document.getElementById("readyUp");
+    const stillInLobby = draftStatus === "lobby";
+    const amBlueCaptain = !!lobby?.blueCaptain && lobby.blueCaptain === playerID;
+    const amRedCaptain = !!lobby?.redCaptain && lobby.redCaptain === playerID;
+
+    if (!stillInLobby || (!amBlueCaptain && !amRedCaptain)) {
+        btn.hidden = true;
+        return;
+    }
+
+    const myReady = amBlueCaptain ? !!lobby.blueReady : !!lobby.redReady;
+    const readyCount = (lobby.blueCaptain && lobby.blueReady ? 1 : 0) + (lobby.redCaptain && lobby.redReady ? 1 : 0);
+
+    btn.hidden = false;
+    btn.textContent = `${myReady ? "✓ Ready" : "Ready Up"} (${readyCount}/2)`;
+    btn.classList.toggle("readied", myReady);
 }
 
 function renderTeam(id, players, captainID) {
@@ -578,11 +756,11 @@ window.joinTeam = async function (team) {
     const lobby = (await getDoc(lobbyRef)).data();
 
     if (lobby.blueCaptain === playerID && team !== "Blue") {
-        await updateDoc(lobbyRef, { blueCaptain: null });
+        await updateDoc(lobbyRef, { blueCaptain: null, blueReady: false });
     }
 
     if (lobby.redCaptain === playerID && team !== "Red") {
-        await updateDoc(lobbyRef, { redCaptain: null });
+        await updateDoc(lobbyRef, { redCaptain: null, redReady: false });
     }
 
     await touchActivity(currentLobby);
@@ -619,16 +797,39 @@ document.getElementById("makeCaptain").onclick = async () => {
     }
 
     const captainField = player.team === "Blue" ? "blueCaptain" : "redCaptain";
+    const readyField = player.team === "Blue" ? "blueReady" : "redReady";
 
     if (lobby[captainField]) {
         alert("This team already has a captain");
         return;
     }
 
+    // A freshly-claimed captaincy always starts un-readied, even if the
+    // previous captain (now gone) had readied up before leaving.
     await updateDoc(lobbyRef, {
-        [captainField]: playerID
+        [captainField]: playerID,
+        [readyField]: false
     });
 
+    await touchActivity(currentLobby);
+};
+
+// ---------------------------------------------------------------------
+// Ready up (each captain independently; Start Draft is gated on both)
+// ---------------------------------------------------------------------
+
+document.getElementById("readyUp").onclick = async () => {
+    const lobbyRef = doc(db, "drafts", currentLobby);
+    const lobby = (await getDoc(lobbyRef)).data();
+
+    const amBlueCaptain = lobby.blueCaptain === playerID;
+    const amRedCaptain = lobby.redCaptain === playerID;
+
+    if (!amBlueCaptain && !amRedCaptain) return;
+
+    const field = amBlueCaptain ? "blueReady" : "redReady";
+
+    await updateDoc(lobbyRef, { [field]: !lobby[field] });
     await touchActivity(currentLobby);
 };
 
@@ -711,6 +912,11 @@ document.getElementById("startDraft").onclick = async () => {
         return;
     }
 
+    if (!lobby.blueReady || !lobby.redReady) {
+        alert("Both team captains need to Ready Up before starting");
+        return;
+    }
+
     await createDraft(currentLobby, blue, red, lobby.blueCaptain, lobby.redCaptain, selectedBanCount, selectedBestOf);
 };
 
@@ -720,6 +926,8 @@ document.getElementById("startDraft").onclick = async () => {
 
 function renderDraft(draft) {
     if (!draft) return;
+
+    lastDraftData = draft;
 
     draftStatus = draft.status || "lobby";
     applyLobbyUIState();
@@ -738,6 +946,8 @@ function renderDraft(draft) {
         lastMapBansCount = 0;
         lastMapPicksCount = 0;
         lastPhaseFlashKey = null;
+        lastAutoPickKey = null;
+        matchWinFlashShown = false;
         return;
     }
 
@@ -1132,28 +1342,32 @@ function renderMatchFinished(draft) {
     const matchWinner = (draft.scoreBlue ?? 0) > (draft.scoreRed ?? 0) ? "Blue" : "Red";
     const winnerName = teamDisplayName(draft, matchWinner);
 
-    setTurnBanner(matchWinner, `${winnerName} Wins the Match!`, `Final Score ${draft.scoreBlue ?? 0} — ${draft.scoreRed ?? 0}`);
+    // The victory flash (once per match) always plays before the banner
+    // and summary appear, same "flash first" rule as every ban/pick.
+    maybeFlashMatchWin(matchWinner, winnerName).then(() => {
+        setTurnBanner(matchWinner, `${winnerName} Wins the Match!`, `Final Score ${draft.scoreBlue ?? 0} — ${draft.scoreRed ?? 0}`);
 
-    const summary = document.getElementById("matchSummary");
+        const summary = document.getElementById("matchSummary");
 
-    summary.hidden = false;
+        summary.hidden = false;
 
-    const history = draft.mapHistory || [];
+        const history = draft.mapHistory || [];
 
-    summary.innerHTML = `
-        <h2>Match Summary</h2>
-        <div class="mapHistoryList">
-            ${history.map(entry => `
-                <div class="mapHistoryRow ${entry.winner ? entry.winner.toLowerCase() + "Side" : ""}">
-                    <span class="mapHistoryGame">Game ${entry.gameNumber}</span>
-                    <span class="mapHistoryMap">${entry.map}</span>
-                    <span class="mapHistoryWinner">${entry.winner ? `${entry.winner === "Blue" ? "🔵" : "🔴"} ${teamDisplayName(draft, entry.winner)} Won` : "—"}</span>
-                </div>
-            `).join("")}
-        </div>
-    `;
+        summary.innerHTML = `
+            <h2>Match Summary</h2>
+            <div class="mapHistoryList">
+                ${history.map(entry => `
+                    <div class="mapHistoryRow ${entry.winner ? entry.winner.toLowerCase() + "Side" : ""}">
+                        <span class="mapHistoryGame">Game ${entry.gameNumber}</span>
+                        <span class="mapHistoryMap">${entry.map}</span>
+                        <span class="mapHistoryWinner">${entry.winner ? `${entry.winner === "Blue" ? "🔵" : "🔴"} ${teamDisplayName(draft, entry.winner)} Won` : "—"}</span>
+                    </div>
+                `).join("")}
+            </div>
+        `;
 
-    summary.scrollIntoView({ behavior: "smooth", block: "start" });
+        summary.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
 }
 
 // ---------------------------------------------------------------------
@@ -1169,11 +1383,11 @@ document.getElementById("leaveLobby").onclick = async () => {
         const lobby = lobbySnap?.data();
 
         if (lobby?.blueCaptain === playerID) {
-            await updateDoc(lobbyRef, { blueCaptain: null }).catch(() => {});
+            await updateDoc(lobbyRef, { blueCaptain: null, blueReady: false }).catch(() => {});
         }
 
         if (lobby?.redCaptain === playerID) {
-            await updateDoc(lobbyRef, { redCaptain: null }).catch(() => {});
+            await updateDoc(lobbyRef, { redCaptain: null, redReady: false }).catch(() => {});
         }
     }
 

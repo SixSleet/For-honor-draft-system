@@ -23,3 +23,9 @@ export const FINISHED_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours
 // happens before every game; the map veto (mapVeto.js) happens once,
 // before game 1.
 export const DEFAULT_BEST_OF = 3;
+
+// How long the active captain has to make a ban/pick (character draft)
+// or a map ban/pick (veto and between-game map picks) before the app
+// auto-selects a random available option on their behalf. Refreshed on
+// every turn advance (see draft.js's turnExpiry()).
+export const TURN_TIME_MS = 2 * 60 * 1000; // 2 minutes
