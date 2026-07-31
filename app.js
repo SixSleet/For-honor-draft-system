@@ -166,58 +166,65 @@ function mapCardHTML(name, size = "md") {
 // Shows `name`'s card big and centered, then flies it to targetEl's
 // actual position/size before revealing the real (already-rendered)
 // card there. targetEl is hidden (visibility, not display, so layout
-// doesn't shift) for the duration so it doesn't show twice.
+// doesn't shift) for the duration so it doesn't show twice. Returns a
+// Promise that resolves once the whole thing (hold + flight + settle)
+// is done, so callers can wait for it before showing anything else —
+// this is what lets the ban/pick flash play AFTER this finishes
+// instead of stacking on top of it.
 function animateReveal(name, kind, targetEl, aspect) {
-    if (!targetEl) return;
+    if (!targetEl) return Promise.resolve();
 
-    const imgTag = kind === "character" ? characterImgTag(name, "revealArt") : mapImgTag(name, "revealArt");
-    const overlay = document.getElementById("revealOverlay");
-    const card = document.getElementById("revealCard");
+    return new Promise(resolve => {
+        const imgTag = kind === "character" ? characterImgTag(name, "revealArt") : mapImgTag(name, "revealArt");
+        const overlay = document.getElementById("revealOverlay");
+        const card = document.getElementById("revealCard");
 
-    card.innerHTML = `${imgTag}<span class="revealLabel">${name}</span>`;
+        card.innerHTML = `${imgTag}<span class="revealLabel">${name}</span>`;
 
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const bigW = Math.min(240, vw * 0.7);
-    const bigH = bigW / aspect;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const bigW = Math.min(240, vw * 0.7);
+        const bigH = bigW / aspect;
 
-    targetEl.style.visibility = "hidden";
-    overlay.hidden = false;
-    overlay.classList.add("dim");
+        targetEl.style.visibility = "hidden";
+        overlay.hidden = false;
+        overlay.classList.add("dim");
 
-    card.style.transition = "none";
-    card.style.left = (vw / 2 - bigW / 2) + "px";
-    card.style.top = (vh / 2 - bigH / 2) + "px";
-    card.style.width = bigW + "px";
-    card.style.height = bigH + "px";
-    card.style.opacity = "0";
-    card.style.transform = "scale(.6)";
+        card.style.transition = "none";
+        card.style.left = (vw / 2 - bigW / 2) + "px";
+        card.style.top = (vh / 2 - bigH / 2) + "px";
+        card.style.width = bigW + "px";
+        card.style.height = bigH + "px";
+        card.style.opacity = "0";
+        card.style.transform = "scale(.6)";
 
-    void card.offsetWidth; // force reflow so the "none" transition above actually applies first
+        void card.offsetWidth; // force reflow so the "none" transition above actually applies first
 
-    card.style.transition = "transform .3s cubic-bezier(.34,1.56,.64,1), opacity .25s ease";
-    card.style.opacity = "1";
-    card.style.transform = "scale(1)";
-
-    setTimeout(() => {
-        const rect = targetEl.getBoundingClientRect();
-
-        card.style.transition = "left .5s cubic-bezier(.65,0,.35,1), top .5s cubic-bezier(.65,0,.35,1), width .5s ease, height .5s ease, opacity .35s ease .3s";
-        card.style.left = rect.left + "px";
-        card.style.top = rect.top + "px";
-        card.style.width = rect.width + "px";
-        card.style.height = rect.height + "px";
-        overlay.classList.remove("dim");
+        card.style.transition = "transform .3s cubic-bezier(.34,1.56,.64,1), opacity .25s ease";
+        card.style.opacity = "1";
+        card.style.transform = "scale(1)";
 
         setTimeout(() => {
-            card.style.opacity = "0";
-        }, 350);
+            const rect = targetEl.getBoundingClientRect();
 
-        setTimeout(() => {
-            overlay.hidden = true;
-            targetEl.style.visibility = "";
-        }, 600);
-    }, 850);
+            card.style.transition = "left .5s cubic-bezier(.65,0,.35,1), top .5s cubic-bezier(.65,0,.35,1), width .5s ease, height .5s ease, opacity .35s ease .3s";
+            card.style.left = rect.left + "px";
+            card.style.top = rect.top + "px";
+            card.style.width = rect.width + "px";
+            card.style.height = rect.height + "px";
+            overlay.classList.remove("dim");
+
+            setTimeout(() => {
+                card.style.opacity = "0";
+            }, 350);
+
+            setTimeout(() => {
+                overlay.hidden = true;
+                targetEl.style.visibility = "";
+                resolve();
+            }, 600);
+        }, 700);
+    });
 }
 
 function showPlayerBadge() {
@@ -274,18 +281,23 @@ function teamDisplayName(data, team) {
 }
 
 // ---------------------------------------------------------------------
-// Ban flash — a big red "BAN" announcement shown the instant a ban
-// phase begins, before that phase's selection UI becomes interactive.
+// Ban/pick flash — a big announcement ("BAN" in red, "PICK" in green)
+// shown the instant a new ban or pick phase begins, before that
+// phase's selection UI becomes interactive. Callers only invoke this
+// AFTER any reveal animation for the PREVIOUS action has finished (see
+// renderDraft's Promise.all gating), so the two never overlap.
 // ---------------------------------------------------------------------
 
-let lastBanFlashKey = null;
+let lastPhaseFlashKey = null;
 
-function showBanFlash() {
+function showPhaseFlash(text, kind) {
     return new Promise(resolve => {
         const overlay = document.getElementById("banFlashOverlay");
+        const text_ = document.getElementById("banFlashText");
 
+        text_.textContent = text;
+        overlay.className = `banFlashOverlay ${kind}`;
         overlay.hidden = false;
-        overlay.classList.remove("show");
 
         requestAnimationFrame(() => {
             overlay.classList.add("show");
@@ -298,24 +310,24 @@ function showBanFlash() {
                 overlay.hidden = true;
                 resolve();
             }, 300);
-        }, 900);
+        }, 700);
     });
 }
 
-// Fires once per distinct ban step (keyed by status+game+turn, since
-// "turn" alone is reused across map veto and every game's character
-// draft), then resolves immediately for every other render of that
-// same step and for anything that isn't a ban at all.
-function maybeFlashBan(draft) {
-    if (draft.phase !== "Ban") return Promise.resolve();
-
+// Fires once per distinct ban/pick step (keyed by status+game+turn,
+// since "turn" alone is reused across map veto and every game's
+// character draft), then resolves immediately for every other render
+// of that same step. kind is "ban" or "pick", supplied by the caller
+// since draft.phase alone isn't a reliable signal during "mapPick"
+// (the loser's map pick reuses the previous game's stale phase field).
+function maybeFlashPhase(draft, kind) {
     const key = `${draft.status}:${draft.gameNumber ?? 0}:${draft.turn ?? 0}`;
 
-    if (key === lastBanFlashKey) return Promise.resolve();
+    if (key === lastPhaseFlashKey) return Promise.resolve();
 
-    lastBanFlashKey = key;
+    lastPhaseFlashKey = key;
 
-    return showBanFlash();
+    return showPhaseFlash(kind === "ban" ? "🚫 BAN" : "⚔ PICK", kind);
 }
 
 // ---------------------------------------------------------------------
@@ -725,31 +737,44 @@ function renderDraft(draft) {
         lastPicksCount = 0;
         lastMapBansCount = 0;
         lastMapPicksCount = 0;
-        lastBanFlashKey = null;
+        lastPhaseFlashKey = null;
         return;
     }
 
     renderMatchScore(draft);
-    renderMapStatusBar(draft);
-    renderDraftHistory(draft);
+
+    // Both of these update their lists immediately (so the data is
+    // always correct even if animations get interrupted), and return a
+    // Promise for any reveal animation they just kicked off for a
+    // newly-confirmed ban/pick — or an already-resolved one if there's
+    // nothing new to reveal. Only one of the two can actually have
+    // something new in any given render, but waiting on both is simpler
+    // than figuring out which. The next phase's UI (and its ban/pick
+    // flash) only shows up once that reveal has fully played out, so
+    // the two animations are always sequential, never stacked.
+    const mapRevealDone = renderMapStatusBar(draft);
+    const historyRevealDone = renderDraftHistory(draft);
+
     matchAnimationsReady = true;
 
-    if (draftStatus === "finished") {
-        renderMatchFinished(draft);
-        return;
-    }
+    Promise.all([mapRevealDone, historyRevealDone]).then(() => {
+        if (draftStatus === "finished") {
+            renderMatchFinished(draft);
+            return;
+        }
 
-    if (draftStatus === "mapVeto" || draftStatus === "mapPick") {
-        renderMapPhase(draft);
-        return;
-    }
+        if (draftStatus === "mapVeto" || draftStatus === "mapPick") {
+            renderMapPhase(draft);
+            return;
+        }
 
-    if (draftStatus === "gameResult") {
-        renderGameResult(draft);
-        return;
-    }
+        if (draftStatus === "gameResult") {
+            renderGameResult(draft);
+            return;
+        }
 
-    renderCharacterDraftPhase(draft);
+        renderCharacterDraftPhase(draft);
+    });
 }
 
 function renderMatchScore(draft) {
@@ -778,7 +803,7 @@ function renderMapStatusBar(draft) {
         bar.hidden = true;
         lastMapBansCount = 0;
         lastMapPicksCount = 0;
-        return;
+        return Promise.resolve();
     }
 
     bar.hidden = false;
@@ -791,16 +816,20 @@ function renderMapStatusBar(draft) {
         ? mapCardHTML(draft.currentMap, "sm")
         : '<span class="historyPlaceholder">—</span>';
 
+    let revealDone = Promise.resolve();
+
     if (matchAnimationsReady && mapBans.length > lastMapBansCount) {
-        animateReveal(mapBans[mapBans.length - 1].map, "map", bannedList.lastElementChild, 1.6);
+        revealDone = animateReveal(mapBans[mapBans.length - 1].map, "map", bannedList.lastElementChild, 1.6);
     }
 
     if (matchAnimationsReady && mapHistory.length > lastMapPicksCount) {
-        animateReveal(draft.currentMap, "map", currentChip.firstElementChild, 1.6);
+        revealDone = animateReveal(draft.currentMap, "map", currentChip.firstElementChild, 1.6);
     }
 
     lastMapBansCount = mapBans.length;
     lastMapPicksCount = mapHistory.length;
+
+    return revealDone;
 }
 
 // ---------------------------------------------------------------------
@@ -838,9 +867,9 @@ function renderMapPhase(draft) {
     const mapSelection = document.getElementById("mapSelection");
     const statusArea = document.getElementById("banPickStatus");
 
-    // The "BAN" flash (if this is a new ban step) plays before either
+    // The BAN/PICK flash (if this is a new step) plays before either
     // the interactive grid or the waiting banner shows up.
-    maybeFlashBan(draft).then(() => {
+    maybeFlashPhase(draft, isBan ? "ban" : "pick").then(() => {
         if (isActingCaptain) {
             title.textContent = titleText;
             mapSelection.hidden = false;
@@ -961,9 +990,9 @@ function renderCharacterDraftPhase(draft) {
     const charactersArea = document.getElementById("characters");
     const statusArea = document.getElementById("banPickStatus");
 
-    // The "BAN" flash (if this is a new ban step) plays before either
+    // The BAN/PICK flash (if this is a new step) plays before either
     // the character grid or the waiting banner shows up.
-    maybeFlashBan(draft).then(() => {
+    maybeFlashPhase(draft, isBan ? "ban" : "pick").then(() => {
         if (isCaptainTurn) {
             charactersArea.hidden = false;
             charactersArea.className = `active ${draft.activeTeam.toLowerCase()}Side${isBan ? " banPhase" : ""}`;
@@ -1061,7 +1090,7 @@ function renderDraftHistory(draft) {
     const bluePicks = document.getElementById("bluePicks");
     const redPicks = document.getElementById("redPicks");
 
-    if (!blueBans || !redBans || !bluePicks || !redPicks) return;
+    if (!blueBans || !redBans || !bluePicks || !redPicks) return Promise.resolve();
 
     const cardsFor = (entries, size) => entries.length
         ? entries.map(e => characterCardHTML(e.character, size)).join("")
@@ -1075,20 +1104,24 @@ function renderDraftHistory(draft) {
     bluePicks.innerHTML = cardsFor(draft.picks.filter(p => p.team === "Blue"), "md");
     redPicks.innerHTML = cardsFor(draft.picks.filter(p => p.team === "Red"), "md");
 
+    let revealDone = Promise.resolve();
+
     if (matchAnimationsReady && draft.bans.length > lastBansCount) {
         const newest = draft.bans[draft.bans.length - 1];
         const container = newest.team === "Blue" ? blueBans : redBans;
-        animateReveal(newest.character, "character", container.lastElementChild, 1);
+        revealDone = animateReveal(newest.character, "character", container.lastElementChild, 1);
     }
 
     if (matchAnimationsReady && draft.picks.length > lastPicksCount) {
         const newest = draft.picks[draft.picks.length - 1];
         const container = newest.team === "Blue" ? bluePicks : redPicks;
-        animateReveal(newest.character, "character", container.lastElementChild, 1);
+        revealDone = animateReveal(newest.character, "character", container.lastElementChild, 1);
     }
 
     lastBansCount = draft.bans.length;
     lastPicksCount = draft.picks.length;
+
+    return revealDone;
 }
 
 // ---------------------------------------------------------------------

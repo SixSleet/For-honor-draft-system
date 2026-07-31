@@ -1242,9 +1242,11 @@ input::placeholder {
 }
 
 /* ===================================================================
-   Ban flash — big red "BAN" announcement the instant a ban phase
-   starts, before that phase's selection UI becomes interactive.
-   See app.js's showBanFlash()/maybeFlashBan().
+   Ban/pick flash — big "BAN" (red) or "PICK" (green) announcement the
+   instant that phase starts, before its selection UI becomes
+   interactive. Always plays AFTER the previous action's reveal
+   animation finishes (never concurrent with it — see renderDraft's
+   Promise.all gating). See app.js's showPhaseFlash()/maybeFlashPhase().
    =================================================================== */
 
 .banFlashOverlay {
@@ -1273,6 +1275,11 @@ input::placeholder {
     opacity: 0;
     transform: scale(.4) rotate(-3deg);
     transition: opacity .3s ease, transform .3s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.banFlashOverlay.pick .banFlashText {
+    color: var(--success);
+    text-shadow: 0 0 40px rgba(62, 207, 142, .8), 0 0 90px rgba(62, 207, 142, .5);
 }
 
 .banFlashOverlay.show .banFlashText {
