@@ -16,13 +16,16 @@
  * activePlayer is always a captain ID — there's no separate pick order
  * to track.
  *
- * banCount (0, 1 or 2) and bestOf (1, 3 or 5) are chosen by the host in
- * Host Controls and stored on the match doc so confirmAction() can
- * rebuild the exact same character draft order later via
- * getDraftOrder(TEAM_SIZE, banCount), and declareGameWinner() knows how
- * many wins (Math.ceil(bestOf / 2)) end the match.
+ * banCount (0, 1 or 2), bestOf (1, 3 or 5), and firstTeam ("Blue" or
+ * "Red") are chosen by the host in Host Controls and stored on the
+ * match doc so confirmAction() can rebuild the exact same character
+ * draft order later via getDraftOrder(TEAM_SIZE, banCount, firstTeam),
+ * confirmMapAction() can do the same for getMapVetoOrder(firstTeam),
+ * and declareGameWinner() knows how many wins (Math.ceil(bestOf / 2))
+ * end the match. firstTeam goes first in the map veto AND in every
+ * game's character draft — it doesn't change across games.
  */
-export function createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCaptain, banCount = 1, bestOf = 3) {
+export function createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCaptain, banCount = 1, bestOf = 3, firstTeam = "Blue") {
     return {
         status: "mapVeto",
 
@@ -32,6 +35,7 @@ export function createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCapt
 
         banCount,
         bestOf,
+        firstTeam,
 
         blueCaptain,
         redCaptain,
@@ -50,8 +54,8 @@ export function createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCapt
         // character draft ever starts.
         turn: 0,
         phase: "Ban",
-        activeTeam: "Blue",
-        activePlayer: blueCaptain,
+        activeTeam: firstTeam,
+        activePlayer: firstTeam === "Blue" ? blueCaptain : redCaptain,
 
         // Character draft state (unused until the map veto finishes)
         bans: [],
@@ -64,15 +68,15 @@ export function createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCapt
  * Fields to reset on the match doc at the start of every game's
  * character draft — both the very first one (right after the map
  * veto) and every subsequent one (right after the loser picks the
- * next map). Captains/rosters/banCount are untouched since they don't
- * change between games.
+ * next map). Captains/rosters/banCount/firstTeam are untouched since
+ * they don't change between games.
  */
-export function resetGameState(blueCaptain, banCount) {
+export function resetGameState(blueCaptain, redCaptain, banCount, firstTeam = "Blue") {
     return {
         turn: 0,
         phase: banCount > 0 ? "Ban" : "Pick",
-        activeTeam: "Blue",
-        activePlayer: blueCaptain,
+        activeTeam: firstTeam,
+        activePlayer: firstTeam === "Blue" ? blueCaptain : redCaptain,
         bans: [],
         picks: [],
         pendingAction: null

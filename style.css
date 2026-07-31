@@ -258,6 +258,18 @@ input::placeholder {
     z-index: 100;
 }
 
+/* Fixed bottom-right credits — quiet, out of the way of everything else */
+.credits {
+    position: fixed;
+    bottom: 14px;
+    right: 14px;
+    z-index: 100;
+    font-size: 11px;
+    letter-spacing: .3px;
+    color: #565b63;
+    pointer-events: none;
+}
+
 /* ===================================================================
    Home screen
    =================================================================== */

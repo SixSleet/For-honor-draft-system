@@ -43,6 +43,7 @@ let selectedCharacter = null;
 let selectedMap = null;
 let selectedBanCount = 1;
 let selectedBestOf = DEFAULT_BEST_OF;
+let selectedFirstTeam = "Blue";
 
 // Reveal-animation bookkeeping: how many bans/picks/map-bans/map-picks
 // we've already rendered, so we only animate genuinely NEW entries —
@@ -879,6 +880,18 @@ document.getElementById("bestOfToggle").addEventListener("click", event => {
     });
 });
 
+document.getElementById("firstTeamToggle").addEventListener("click", event => {
+    const option = event.target.closest(".banOption");
+
+    if (!option) return;
+
+    selectedFirstTeam = option.dataset.value;
+
+    document.querySelectorAll("#firstTeamToggle .banOption").forEach(btn => {
+        btn.classList.toggle("selected", btn === option);
+    });
+});
+
 // ---------------------------------------------------------------------
 // Start match (host only) — kicks off the map veto, not the character
 // draft directly; the character draft only starts once Game 1's map
@@ -917,7 +930,7 @@ document.getElementById("startDraft").onclick = async () => {
         return;
     }
 
-    await createDraft(currentLobby, blue, red, lobby.blueCaptain, lobby.redCaptain, selectedBanCount, selectedBestOf);
+    await createDraft(currentLobby, blue, red, lobby.blueCaptain, lobby.redCaptain, selectedBanCount, selectedBestOf, selectedFirstTeam);
 };
 
 // ---------------------------------------------------------------------

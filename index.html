@@ -25,15 +25,18 @@
     <!-- Fixed bottom-left leave button -->
     <button id="leaveLobby" class="ghostDanger" hidden>Leave Lobby</button>
 
+    <!-- Fixed bottom-right credits -->
+    <div id="credits" class="credits">Developed by SushiRider (SixSleet)</div>
+
     <div id="home">
 
         <div class="homeCard fadeIn">
 
             <h1 class="heroTitle">⚔ For Honor Draft ⚔</h1>
-            <p class="tagline">Assemble your warband and settle it on the field.</p>
+            <p class="tagline">Keep t</p>
 
-            <label class="fieldLabel" for="name">Your name</label>
-            <input id="name" placeholder="e.g. Aramusha">
+            <label class="fieldLabel" for="name">Username</label>
+            <input id="name" placeholder="e.g. Shasha">
 
             <div class="homeActions">
 
@@ -83,6 +86,14 @@
                         <button type="button" class="banOption" data-value="1">Bo1</button>
                         <button type="button" class="banOption selected" data-value="3">Bo3</button>
                         <button type="button" class="banOption" data-value="5">Bo5</button>
+                    </div>
+                </div>
+
+                <div class="banConfig">
+                    <span class="fieldLabel">First to ban/pick</span>
+                    <div id="firstTeamToggle" class="banCountToggle">
+                        <button type="button" class="banOption selected" data-value="Blue">🔵 Blue</button>
+                        <button type="button" class="banOption" data-value="Red">🔴 Red</button>
                     </div>
                 </div>
 

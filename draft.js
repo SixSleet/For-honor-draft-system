@@ -31,8 +31,8 @@ function turnExpiry() {
  * "mapVeto" status — the character draft doesn't start until the map
  * veto picks Game 1's map.
  */
-export async function createDraft(lobby, bluePlayers, redPlayers, blueCaptain, redCaptain, banCount = 1, bestOf = 3) {
-    const initialMatch = createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCaptain, banCount, bestOf);
+export async function createDraft(lobby, bluePlayers, redPlayers, blueCaptain, redCaptain, banCount = 1, bestOf = 3, firstTeam = "Blue") {
+    const initialMatch = createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCaptain, banCount, bestOf, firstTeam);
 
     await updateDoc(doc(db, "drafts", lobby), {
         ...initialMatch,
@@ -126,7 +126,7 @@ export async function confirmAction(lobby, playerID) {
         });
     }
 
-    const order = getDraftOrder(TEAM_SIZE, draft.banCount ?? 1);
+    const order = getDraftOrder(TEAM_SIZE, draft.banCount ?? 1, draft.firstTeam ?? "Blue");
     const nextTurn = draft.turn + 1;
     const next = order[nextTurn];
 
@@ -229,7 +229,7 @@ export async function confirmMapAction(lobby, playerID) {
             mapHistory,
             pendingMapAction: null,
             status: "draft",
-            ...resetGameState(draft.blueCaptain, draft.banCount ?? 1),
+            ...resetGameState(draft.blueCaptain, draft.redCaptain, draft.banCount ?? 1, draft.firstTeam ?? "Blue"),
             turnDeadline: turnExpiry(),
             expiresAt: inactivityExpiry()
         });
@@ -243,7 +243,7 @@ export async function confirmMapAction(lobby, playerID) {
         mapBans.push({ team: draft.activeTeam, map });
     }
 
-    const order = getMapVetoOrder();
+    const order = getMapVetoOrder(draft.firstTeam ?? "Blue");
     const nextTurn = draft.turn + 1;
     const next = order[nextTurn];
 
@@ -255,7 +255,7 @@ export async function confirmMapAction(lobby, playerID) {
             mapHistory: [{ gameNumber: 1, map, winner: null }],
             pendingMapAction: null,
             status: "draft",
-            ...resetGameState(draft.blueCaptain, draft.banCount ?? 1),
+            ...resetGameState(draft.blueCaptain, draft.redCaptain, draft.banCount ?? 1, draft.firstTeam ?? "Blue"),
             turnDeadline: turnExpiry(),
             expiresAt: inactivityExpiry()
         });
