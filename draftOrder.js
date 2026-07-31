@@ -11,14 +11,15 @@ import { TEAM_SIZE } from "./config.js";
  *
  *   1. TEAM strictly alternates Blue/Red every single step, regardless
  *      of what type that step is (Blue always goes on step 0).
- *   2. The step TYPES follow a fixed template split into two ban
- *      rounds bracketing two pick blocks:
- *          Ban x banCount, Pick x teamSize, Ban x banCount, Pick x teamSize
+ *   2. The step TYPES follow a fixed template: every ban happens first
+ *      (both teams alternating), then every pick (both teams
+ *      alternating) — no bans occur once picking has started.
+ *          Ban x banCount x 2, Pick x teamSize x 2
  *
  * e.g. for teamSize=4:
  *   banCount=0: P P P P P P P P                  (Blue P, Red P, Blue P, ...)
- *   banCount=1: B P P P P B P P P P               -> B1 P2 P1 P2 P1 B2 P1 P2 P1 P2
- *   banCount=2: B B P P P P B B P P P P            -> B1 B2 P1 P2 P1 P2 B1 B2 P1 P2 P1 P2
+ *   banCount=1: B B P P P P P P P P               -> B1 B2 P1 P2 P1 P2 P1 P2 P1 P2
+ *   banCount=2: B B B B P P P P P P P P            -> B1 B2 B1 B2 P1 P2 P1 P2 P1 P2 P1 P2
  * (B1/P1 = Blue ban/pick, B2/P2 = Red ban/pick — matches the reference
  * draft order exactly.)
  *
@@ -29,10 +30,8 @@ import { TEAM_SIZE } from "./config.js";
  */
 export function getDraftOrder(teamSize = TEAM_SIZE, banCount = 1) {
     const typeTemplate = [
-        ...Array(banCount).fill("Ban"),
-        ...Array(teamSize).fill("Pick"),
-        ...Array(banCount).fill("Ban"),
-        ...Array(teamSize).fill("Pick")
+        ...Array(banCount * 2).fill("Ban"),
+        ...Array(teamSize * 2).fill("Pick")
     ];
 
     return typeTemplate.map((type, i) => ({
