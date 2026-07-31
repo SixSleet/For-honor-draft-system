@@ -457,6 +457,20 @@ input::placeholder {
     animation: pulseOrange 2.2s ease-in-out infinite;
 }
 
+/* Banning vs. picking is the exact distinction that's easy to lose
+   track of mid-draft — so a ban ALWAYS turns things red, overriding
+   the team's blue/orange color, everywhere the current phase shows up. */
+.turnBanner.banPhase {
+    border-color: var(--danger);
+    background: linear-gradient(135deg, rgba(214, 69, 69, .28), var(--steel));
+    animation: pulseBan 1.6s ease-in-out infinite;
+}
+
+.turnBanner.banPhase .turnPhase {
+    color: var(--danger);
+    font-weight: 700;
+}
+
 .statusBanner {
     margin: 0 auto var(--gap-md);
     padding: 14px 20px;
@@ -477,6 +491,13 @@ input::placeholder {
     border-color: var(--orange);
 }
 
+.statusBanner.banPhase {
+    border-color: var(--danger);
+    background: linear-gradient(135deg, rgba(214, 69, 69, .18), var(--steel));
+    color: #ffd9d9;
+    font-weight: 600;
+}
+
 /* ===================================================================
    Map veto / map pick
    =================================================================== */
@@ -490,6 +511,12 @@ input::placeholder {
     background: var(--steel);
     box-shadow: 0 14px 36px rgba(0, 0, 0, .3);
     animation: fadeIn .25s ease both;
+}
+
+/* Banning always reads as red, regardless of which team's turn it is */
+#mapSelection.banPhase {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 1px var(--danger), 0 0 30px rgba(214, 69, 69, .3);
 }
 
 .mapGrid {
@@ -846,6 +873,12 @@ input::placeholder {
     box-shadow: 0 0 0 1px var(--orange), 0 0 30px rgba(226, 121, 15, .25);
 }
 
+/* Banning always reads as red, regardless of which team's turn it is */
+#characters.active.banPhase {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 1px var(--danger), 0 0 30px rgba(214, 69, 69, .35);
+}
+
 #characterGrid {
     margin: 18px 0;
     display: flex;
@@ -1066,6 +1099,11 @@ input::placeholder {
 @keyframes pulseOrange {
     0%, 100% { box-shadow: 0 0 0 rgba(226, 121, 15, 0); }
     50% { box-shadow: 0 0 24px rgba(226, 121, 15, .35); }
+}
+
+@keyframes pulseBan {
+    0%, 100% { box-shadow: 0 0 0 rgba(214, 69, 69, 0); }
+    50% { box-shadow: 0 0 26px rgba(214, 69, 69, .45); }
 }
 
 @keyframes shimmer {

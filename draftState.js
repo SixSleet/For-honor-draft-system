@@ -4,23 +4,25 @@
  * calls this instead of building the object inline, so the shape never
  * drifts between callers.
  *
- * A match is a best-of-N (config.BEST_OF): the map veto runs once,
- * then each game gets its own fresh character draft, a host-declared
- * winner, and (if the match isn't decided yet) a map pick by the
- * loser before the next game's draft. Captains, rosters and the ban
- * count are chosen once in the lobby and never change across games —
- * only the per-game fields (turn/phase/activeTeam/activePlayer/
- * bans/picks) get reset between games, by resetGameState() below.
+ * A match is a best-of-N: the map veto runs once, then each game gets
+ * its own fresh character draft, a host-declared winner, and (if the
+ * match isn't decided yet) a map pick by the loser before the next
+ * game's draft. Captains, rosters, the ban count and bestOf are chosen
+ * once in the lobby and never change across games — only the per-game
+ * fields (turn/phase/activeTeam/activePlayer/bans/picks) get reset
+ * between games, by resetGameState() below.
  *
  * Since the captain performs every ban AND pick for their team,
  * activePlayer is always a captain ID — there's no separate pick order
  * to track.
  *
- * banCount (0, 1 or 2) is chosen by the host in Host Controls and is
- * stored on the match doc so confirmAction() can rebuild the exact
- * same character draft order later via getDraftOrder(TEAM_SIZE, banCount).
+ * banCount (0, 1 or 2) and bestOf (1, 3 or 5) are chosen by the host in
+ * Host Controls and stored on the match doc so confirmAction() can
+ * rebuild the exact same character draft order later via
+ * getDraftOrder(TEAM_SIZE, banCount), and declareGameWinner() knows how
+ * many wins (Math.ceil(bestOf / 2)) end the match.
  */
-export function createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCaptain, banCount = 1) {
+export function createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCaptain, banCount = 1, bestOf = 3) {
     return {
         status: "mapVeto",
 
@@ -29,6 +31,7 @@ export function createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCapt
         gameNumber: 1,
 
         banCount,
+        bestOf,
 
         blueCaptain,
         redCaptain,

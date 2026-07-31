@@ -7,7 +7,7 @@ import {
     Timestamp
 } from "./firebase.js";
 
-import { TEAM_SIZE, INACTIVITY_MS, FINISHED_TTL_MS, WINS_NEEDED } from "./config.js";
+import { TEAM_SIZE, INACTIVITY_MS, FINISHED_TTL_MS } from "./config.js";
 import { getDraftOrder } from "./draftOrder.js";
 import { getMapVetoOrder } from "./mapVeto.js";
 import { createInitialMatch, resetGameState } from "./draftState.js";
@@ -22,8 +22,8 @@ function inactivityExpiry() {
  * "mapVeto" status — the character draft doesn't start until the map
  * veto picks Game 1's map.
  */
-export async function createDraft(lobby, bluePlayers, redPlayers, blueCaptain, redCaptain, banCount = 1) {
-    const initialMatch = createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCaptain, banCount);
+export async function createDraft(lobby, bluePlayers, redPlayers, blueCaptain, redCaptain, banCount = 1, bestOf = 3) {
+    const initialMatch = createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCaptain, banCount, bestOf);
 
     await updateDoc(doc(db, "drafts", lobby), {
         ...initialMatch,
@@ -267,8 +267,8 @@ export async function confirmMapAction(lobby, playerID) {
 /**
  * Host-only action (gated client-side, like startDraft): records which
  * team won the just-finished game, updates the match score, and either
- * ends the match (a team reached WINS_NEEDED) or hands the next map
- * pick to the loser.
+ * ends the match (a team reached the winsNeeded for this match's
+ * bestOf) or hands the next map pick to the loser.
  */
 export async function declareGameWinner(lobby, winnerTeam) {
     const ref = doc(db, "drafts", lobby);
@@ -286,8 +286,9 @@ export async function declareGameWinner(lobby, winnerTeam) {
 
     const scoreBlue = (draft.scoreBlue || 0) + (winnerTeam === "Blue" ? 1 : 0);
     const scoreRed = (draft.scoreRed || 0) + (winnerTeam === "Red" ? 1 : 0);
+    const winsNeeded = Math.ceil((draft.bestOf || 3) / 2);
 
-    if (scoreBlue >= WINS_NEEDED || scoreRed >= WINS_NEEDED) {
+    if (scoreBlue >= winsNeeded || scoreRed >= winsNeeded) {
         await updateDoc(ref, {
             status: "finished",
             scoreBlue,

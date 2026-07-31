@@ -16,8 +16,10 @@ export const DEFAULT_BAN_COUNT = 1;
 export const INACTIVITY_MS = 60 * 60 * 1000; // 1 hour
 export const FINISHED_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours
 
-// The whole match is a best-of-N: whichever team wins WINS_NEEDED
-// games first takes the match. A new character draft happens before
-// every game; the map veto (mapVeto.js) happens once, before game 1.
-export const BEST_OF = 3;
-export const WINS_NEEDED = Math.ceil(BEST_OF / 2);
+// The whole match is a best-of-N, chosen by the host in Host Controls
+// (1, 3 or 5) and stored per-match as draft.bestOf — whichever team
+// wins Math.ceil(bestOf / 2) games first takes the match. Used only as
+// the default the "Best of" selector starts on. A new character draft
+// happens before every game; the map veto (mapVeto.js) happens once,
+// before game 1.
+export const DEFAULT_BEST_OF = 3;

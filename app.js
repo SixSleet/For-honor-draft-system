@@ -13,7 +13,7 @@ import {
 
 import { charactersByFaction, characterImageSrc } from "./characters.js";
 import { maps, mapImageSrc } from "./maps.js";
-import { TEAM_SIZE, INACTIVITY_MS, BEST_OF, WINS_NEEDED } from "./config.js";
+import { TEAM_SIZE, INACTIVITY_MS, DEFAULT_BEST_OF } from "./config.js";
 
 import {
     createDraft,
@@ -42,6 +42,7 @@ let isHost = false;
 let selectedCharacter = null;
 let selectedMap = null;
 let selectedBanCount = 1;
+let selectedBestOf = DEFAULT_BEST_OF;
 
 // Reveal-animation bookkeeping: how many bans/picks/map-bans/map-picks
 // we've already rendered, so we only animate genuinely NEW entries —
@@ -237,10 +238,13 @@ function applyLobbyUIState() {
 
 // Sets the shared turn banner's team-colored styling + title/subtitle.
 // team may be null (e.g. match finished) for the neutral gold style.
-function setTurnBanner(team, title, subtitle) {
+// phaseType ("ban"|"pick"|null) adds a matching class — "ban" wins out
+// over the team color (red, everywhere) since banning vs. picking is
+// exactly the distinction that's easy to lose track of mid-draft.
+function setTurnBanner(team, title, subtitle, phaseType) {
     const banner = document.getElementById("draftTurn");
 
-    banner.className = `turnBanner${team ? " " + team.toLowerCase() + "Side" : ""}`;
+    banner.className = `turnBanner${team ? " " + team.toLowerCase() + "Side" : ""}${phaseType ? " " + phaseType + "Phase" : ""}`;
     banner.innerHTML = `
         <span class="turnTeam">${title}</span>
         ${subtitle ? `<span class="turnPhase">${subtitle}</span>` : ""}
@@ -526,7 +530,7 @@ document.getElementById("makeCaptain").onclick = async () => {
 };
 
 // ---------------------------------------------------------------------
-// Ban count selector (host only, chosen before Start Draft)
+// Ban count / Best-of selectors (host only, chosen before Start Draft)
 // ---------------------------------------------------------------------
 
 document.getElementById("banCountToggle").addEventListener("click", event => {
@@ -536,7 +540,19 @@ document.getElementById("banCountToggle").addEventListener("click", event => {
 
     selectedBanCount = Number(option.dataset.value);
 
-    document.querySelectorAll(".banOption").forEach(btn => {
+    document.querySelectorAll("#banCountToggle .banOption").forEach(btn => {
+        btn.classList.toggle("selected", btn === option);
+    });
+});
+
+document.getElementById("bestOfToggle").addEventListener("click", event => {
+    const option = event.target.closest(".banOption");
+
+    if (!option) return;
+
+    selectedBestOf = Number(option.dataset.value);
+
+    document.querySelectorAll("#bestOfToggle .banOption").forEach(btn => {
         btn.classList.toggle("selected", btn === option);
     });
 });
@@ -576,7 +592,7 @@ document.getElementById("startDraft").onclick = async () => {
         return;
     }
 
-    await createDraft(currentLobby, blue, red, lobby.blueCaptain, lobby.redCaptain, selectedBanCount);
+    await createDraft(currentLobby, blue, red, lobby.blueCaptain, lobby.redCaptain, selectedBanCount, selectedBestOf);
 };
 
 // ---------------------------------------------------------------------
@@ -629,9 +645,12 @@ function renderDraft(draft) {
 }
 
 function renderMatchScore(draft) {
+    const bestOf = draft.bestOf ?? DEFAULT_BEST_OF;
+    const winsNeeded = Math.ceil(bestOf / 2);
+
     document.getElementById("matchScore").innerHTML = `
         <span class="scoreLine">🔵 ${draft.scoreBlue ?? 0} — ${draft.scoreRed ?? 0} 🔴</span>
-        <span class="gameLine">Game ${draft.gameNumber ?? 1} of ${BEST_OF} · First to ${WINS_NEEDED}</span>
+        <span class="gameLine">Game ${draft.gameNumber ?? 1} of ${bestOf} · First to ${winsNeeded}</span>
     `;
 }
 
@@ -683,33 +702,35 @@ function renderMapStatusBar(draft) {
 function renderMapPhase(draft) {
     const isActingCaptain = draft.activePlayer === playerID;
     const title = document.getElementById("mapSelectionTitle");
+    const isBan = draft.status === "mapVeto" && draft.phase === "Ban";
 
     let bannerSubtitle;
     let waitingText;
 
     if (draft.status === "mapVeto") {
-        if (draft.phase === "Ban") {
-            bannerSubtitle = "Map Veto — Ban Phase";
-            waitingText = `${draft.activeTeam} Captain is banning a map…`;
-            title.textContent = "Ban a Map";
+        if (isBan) {
+            bannerSubtitle = "🚫 BANNING a Map";
+            waitingText = `🚫 ${draft.activeTeam} Captain is BANNING a map…`;
+            title.textContent = "🚫 Ban a Map";
         } else {
-            bannerSubtitle = "Map Veto — Pick Phase";
+            bannerSubtitle = "Picking Game 1's Map";
             waitingText = `${draft.activeTeam} Captain is picking Game 1's map…`;
             title.textContent = "Pick Game 1's Map";
         }
     } else {
-        bannerSubtitle = `Game ${draft.gameNumber} — Map Pick`;
+        bannerSubtitle = `Game ${draft.gameNumber} — Picking Next Map`;
         waitingText = `${draft.activeTeam} Captain (loser of the last game) is picking the next map…`;
         title.textContent = `Pick Game ${draft.gameNumber}'s Map`;
     }
 
-    setTurnBanner(draft.activeTeam, draft.activeTeam, bannerSubtitle);
+    setTurnBanner(draft.activeTeam, draft.activeTeam, bannerSubtitle, isBan ? "ban" : "pick");
 
     const mapSelection = document.getElementById("mapSelection");
     const statusArea = document.getElementById("banPickStatus");
 
     if (isActingCaptain) {
         mapSelection.hidden = false;
+        mapSelection.className = isBan ? "banPhase" : "";
         renderMapGrid(draft);
         statusArea.hidden = true;
     } else {
@@ -718,13 +739,14 @@ function renderMapPhase(draft) {
         document.getElementById("confirmMap").hidden = true;
 
         statusArea.hidden = false;
-        statusArea.className = `statusBanner fadeIn ${draft.activeTeam.toLowerCase()}Side`;
+        statusArea.className = `statusBanner fadeIn ${draft.activeTeam.toLowerCase()}Side${isBan ? " banPhase" : ""}`;
         statusArea.innerHTML = waitingText;
     }
 }
 
 function renderMapGrid(draft) {
     const grid = document.getElementById("mapGrid");
+    const isBan = draft.status === "mapVeto" && draft.phase === "Ban";
 
     grid.innerHTML = "";
 
@@ -751,7 +773,9 @@ function renderMapGrid(draft) {
 
             button.classList.add("selected");
 
-            document.getElementById("confirmMap").hidden = false;
+            const confirmBtn = document.getElementById("confirmMap");
+            confirmBtn.hidden = false;
+            confirmBtn.textContent = isBan ? "🚫 Confirm Ban" : "Confirm Pick";
         };
 
         grid.appendChild(button);
@@ -808,18 +832,19 @@ document.getElementById("redWon").onclick = async () => {
 
 function renderCharacterDraftPhase(draft) {
     const isCaptainTurn = draft.activePlayer === playerID;
+    const isBan = draft.phase === "Ban";
 
-    const phaseLabel = draft.phase === "Ban" ? "Ban Phase" : "Pick Phase";
+    const phaseLabel = isBan ? "🚫 BANNING" : "Pick Phase";
     const mapLabel = draft.currentMap ? ` · ${draft.currentMap}` : "";
 
-    setTurnBanner(draft.activeTeam, draft.activeTeam, phaseLabel + mapLabel);
+    setTurnBanner(draft.activeTeam, draft.activeTeam, phaseLabel + mapLabel, isBan ? "ban" : "pick");
 
     const charactersArea = document.getElementById("characters");
     const statusArea = document.getElementById("banPickStatus");
 
     if (isCaptainTurn) {
         charactersArea.hidden = false;
-        charactersArea.className = `active ${draft.activeTeam.toLowerCase()}Side`;
+        charactersArea.className = `active ${draft.activeTeam.toLowerCase()}Side${isBan ? " banPhase" : ""}`;
         statusArea.hidden = true;
 
         renderCharacterButtons(draft);
@@ -829,9 +854,9 @@ function renderCharacterDraftPhase(draft) {
         document.getElementById("confirmPick").hidden = true;
 
         statusArea.hidden = false;
-        statusArea.className = `statusBanner fadeIn ${draft.activeTeam.toLowerCase()}Side`;
+        statusArea.className = `statusBanner fadeIn ${draft.activeTeam.toLowerCase()}Side${isBan ? " banPhase" : ""}`;
         statusArea.innerHTML = `${draft.activeTeam} Captain is ${
-            draft.phase === "Ban" ? "banning…" : "picking…"
+            isBan ? "🚫 BANNING…" : "picking…"
         }`;
     }
 }
@@ -876,7 +901,9 @@ function renderCharacterButtons(draft) {
 
                 button.classList.add("selected");
 
-                document.getElementById("confirmPick").hidden = false;
+                const confirmBtn = document.getElementById("confirmPick");
+                confirmBtn.hidden = false;
+                confirmBtn.textContent = draft.phase === "Ban" ? "🚫 Confirm Ban" : "Confirm Pick";
             };
 
             factionGrid.appendChild(button);
