@@ -1,0 +1,1149 @@
+/* ===================================================================
+   Tokens
+   =================================================================== */
+
+:root {
+    --ink: #07080a;
+    --steel: #15181d;
+    --steel-line: #33383f;
+
+    --blue: #2f6fe4;
+    --blue-bright: #4d8cff;
+    --blue-deep: #0a1c3d;
+
+    --orange: #e2790f;
+    --orange-bright: #ff9a33;
+    --orange-deep: #3c1f06;
+
+    --gold: #d8b24a;
+
+    --danger: #d64545;
+    --success: #3ecf8e;
+
+    --radius: 10px;
+    --gap-sm: 10px;
+    --gap-md: 20px;
+    --gap-lg: 36px;
+
+    --font-display: "Cinzel", "Georgia", serif;
+    --font-body: "Inter", "Segoe UI", Arial, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* #home below sets its own `display`, which otherwise wins over the
+   browser's default [hidden] rule by specificity and leaves it visibly
+   on-screen (form + scroll offset) even while its `hidden` attribute
+   is set. This makes `hidden` reliably win for any element. */
+[hidden] {
+    display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ===================================================================
+   Base
+   =================================================================== */
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    /* Blue fades to black at center, then to orange — the faction
+       split that carries through the whole draft room. */
+    background: linear-gradient(
+        to right,
+        var(--blue-deep) 0%,
+        var(--ink) 46%,
+        var(--ink) 54%,
+        var(--orange-deep) 100%
+    );
+    background-attachment: fixed;
+    color: #f2f2f0;
+    font-family: var(--font-body);
+    text-align: center;
+    line-height: 1.5;
+}
+
+h1, h2, h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin: 0 0 8px;
+}
+
+h1 {
+    font-size: 38px;
+}
+
+.heroTitle {
+    color: var(--gold);
+    background: linear-gradient(90deg, var(--gold), #fff6d8, var(--gold));
+    background-size: 200% auto;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 6s linear infinite;
+}
+
+h2 {
+    font-size: 22px;
+    color: #e9e6dd;
+}
+
+h3 {
+    font-size: 16px;
+    color: #c8c5ba;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+}
+
+p {
+    margin: 0;
+}
+
+/* ===================================================================
+   Buttons & inputs
+   =================================================================== */
+
+button {
+    font-family: var(--font-body);
+    background: #1c2027;
+    color: white;
+    border: 1px solid var(--steel-line);
+    padding: 12px 26px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .4px;
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease;
+}
+
+button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background: #262b33;
+    border-color: #555b64;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .35);
+}
+
+button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+button:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+}
+
+button.primary {
+    background: linear-gradient(135deg, var(--gold), #a9822f);
+    border-color: #a9822f;
+    color: #1a1400;
+}
+
+button.primary:hover:not(:disabled) {
+    box-shadow: 0 6px 18px rgba(216, 178, 74, .4);
+}
+
+button.ghostDanger {
+    background: transparent;
+    border: 1px solid #6b2f2f;
+    color: #d99;
+    margin-top: var(--gap-lg);
+}
+
+button.ghostDanger:hover {
+    background: rgba(180, 60, 60, .15);
+    border-color: #b44;
+    box-shadow: 0 6px 16px rgba(180, 60, 60, .25);
+}
+
+input {
+    background: #0e1014;
+    color: white;
+    border: 1px solid var(--steel-line);
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: var(--font-body);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(216, 178, 74, .2);
+}
+
+input::placeholder {
+    color: #6a6f78;
+}
+
+/* ===================================================================
+   Player badge
+   =================================================================== */
+
+#playerDisplay {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 100;
+    background: rgba(14, 16, 20, .85);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--steel-line);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 12px;
+    text-align: left;
+    line-height: 1.4;
+    color: #b8bcc4;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    animation: fadeInDown .35s ease both;
+}
+
+#playerDisplay strong {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 15px;
+    color: var(--gold);
+    text-transform: none;
+    letter-spacing: 1px;
+}
+
+/* ===================================================================
+   Home screen
+   =================================================================== */
+
+#home {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.homeCard {
+    width: 100%;
+    max-width: 440px;
+    background: rgba(21, 24, 29, .9);
+    border: 1px solid var(--steel-line);
+    border-radius: var(--radius);
+    padding: 40px 34px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+}
+
+.tagline {
+    color: #9a9fa8;
+    font-size: 14px;
+    margin-bottom: 28px;
+}
+
+.fieldLabel {
+    display: block;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #9a9fa8;
+    margin-bottom: 6px;
+}
+
+#home input#name {
+    width: 100%;
+    margin-bottom: 24px;
+}
+
+.homeActions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-md);
+}
+
+.homeAction {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.homeAction input {
+    width: 100%;
+}
+
+.homeAction button {
+    width: 100%;
+}
+
+.hint {
+    font-size: 12px;
+    color: #6a6f78;
+}
+
+.orDivider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #6a6f78;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.orDivider::before,
+.orDivider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--steel-line);
+}
+
+/* ===================================================================
+   Draft room shell
+   =================================================================== */
+
+#draft {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 24px 60px;
+    animation: fadeIn .4s ease both;
+}
+
+.lobbyControls {
+    display: flex;
+    justify-content: center;
+    gap: var(--gap-md);
+    flex-wrap: wrap;
+    margin: var(--gap-lg) 0;
+}
+
+.controlCard {
+    background: var(--steel);
+    border: 1px solid var(--steel-line);
+    border-radius: var(--radius);
+    padding: 20px 26px;
+    min-width: 220px;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, .25);
+}
+
+#captains {
+    display: flex;
+    justify-content: center;
+    gap: var(--gap-md);
+    font-size: 15px;
+    margin: 14px 0 18px;
+    flex-wrap: wrap;
+}
+
+.captainStatus {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--steel-line);
+    background: rgba(255, 255, 255, .03);
+}
+
+.captainStatus.blueSide {
+    border-color: rgba(47, 111, 228, .5);
+}
+
+.captainStatus.redSide {
+    border-color: rgba(226, 121, 15, .5);
+}
+
+.banConfig {
+    margin-bottom: 18px;
+}
+
+.banCountToggle {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.banOption {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+
+.banOption.selected {
+    border-color: var(--gold);
+    color: var(--gold);
+    box-shadow: 0 0 0 1px var(--gold);
+}
+
+.crown {
+    display: inline-block;
+    animation: crownPop .45s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+
+/* ===================================================================
+   Match score (persists across the whole best-of-N match)
+   =================================================================== */
+
+.matchScore {
+    margin: var(--gap-md) auto 0;
+    max-width: 420px;
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    background: var(--steel);
+    border: 1px solid var(--steel-line);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    animation: fadeIn .3s ease both;
+}
+
+.scoreLine {
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: var(--gold);
+}
+
+.gameLine {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #9a9fa8;
+}
+
+/* ===================================================================
+   Turn banner
+   =================================================================== */
+
+.turnBanner {
+    margin: var(--gap-lg) auto var(--gap-md);
+    max-width: 420px;
+    padding: 16px 20px;
+    border-radius: var(--radius);
+    background: var(--steel);
+    border: 1px solid var(--steel-line);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.turnTeam {
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 2px;
+}
+
+.turnPhase {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: #9a9fa8;
+}
+
+.turnBanner.blueSide {
+    border-color: var(--blue);
+    background: linear-gradient(135deg, rgba(47, 111, 228, .18), var(--steel));
+    animation: pulseBlue 2.2s ease-in-out infinite;
+}
+
+.turnBanner.redSide {
+    border-color: var(--orange);
+    background: linear-gradient(135deg, rgba(226, 121, 15, .18), var(--steel));
+    animation: pulseOrange 2.2s ease-in-out infinite;
+}
+
+.statusBanner {
+    margin: 0 auto var(--gap-md);
+    padding: 14px 20px;
+    max-width: 400px;
+    background: var(--steel);
+    border: 1px solid var(--gold);
+    border-radius: var(--radius);
+    font-size: 15px;
+    letter-spacing: .5px;
+    color: #d8d4c8;
+}
+
+.statusBanner.blueSide {
+    border-color: var(--blue);
+}
+
+.statusBanner.redSide {
+    border-color: var(--orange);
+}
+
+/* ===================================================================
+   Map veto / map pick
+   =================================================================== */
+
+#mapSelection {
+    margin: var(--gap-lg) auto;
+    max-width: 720px;
+    padding: 26px;
+    border-radius: var(--radius);
+    border: 1px solid var(--steel-line);
+    background: var(--steel);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, .3);
+    animation: fadeIn .25s ease both;
+}
+
+.mapGrid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--gap-sm);
+    margin: 18px 0;
+}
+
+.mapOption {
+    width: 160px;
+    height: 100px;
+    padding: 0;
+    overflow: hidden;
+    background: transparent;
+    animation: charPop .35s ease both;
+}
+
+.mapOption:disabled .mapCard {
+    filter: grayscale(1);
+}
+
+.mapOption:nth-child(1) { animation-delay: 0s; }
+.mapOption:nth-child(2) { animation-delay: .03s; }
+.mapOption:nth-child(3) { animation-delay: .06s; }
+.mapOption:nth-child(4) { animation-delay: .09s; }
+.mapOption:nth-child(5) { animation-delay: .12s; }
+.mapOption:nth-child(6) { animation-delay: .15s; }
+.mapOption:nth-child(7) { animation-delay: .18s; }
+.mapOption:nth-child(8) { animation-delay: .21s; }
+.mapOption:nth-child(9) { animation-delay: .24s; }
+.mapOption:nth-child(10) { animation-delay: .27s; }
+
+.mapOption:hover:not(:disabled):not(.selected) {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .4), 0 0 0 1px rgba(216, 178, 74, .45);
+}
+
+.mapOption.selected {
+    border-color: var(--gold);
+    color: var(--gold);
+    box-shadow: 0 0 0 2px var(--gold), 0 6px 16px rgba(216, 178, 74, .3);
+    transform: translateY(-2px);
+    animation: selectPulse 1.4s ease-in-out infinite;
+}
+
+/* Map card — same "base + drop-in art" idea as .charCard, but a
+   landscape tile since map screenshots aren't square like portraits. */
+
+.mapCard {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    background: linear-gradient(160deg, #2a2f38, #14171c);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    animation: fadeIn .3s ease both;
+}
+
+.mapCard.md {
+    width: 160px;
+    height: 100px;
+}
+
+.mapCard.sm {
+    width: 96px;
+    height: 60px;
+}
+
+.mapArt {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.mapLabel {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    padding: 4px 4px 5px;
+    background: linear-gradient(to top, rgba(0, 0, 0, .85), transparent);
+    font-family: var(--font-display);
+    font-size: 10px;
+    letter-spacing: .3px;
+    color: #f2f2f0;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Banned Maps / Current Map — persistent chip row, also the landing
+   spot for the map reveal animation below. */
+
+.mapStatusBar {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin: var(--gap-md) auto 0;
+    flex-wrap: wrap;
+    animation: fadeIn .3s ease both;
+}
+
+.mapStatusGroup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.mapStatusLabel {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #9a9fa8;
+}
+
+.mapChipRow {
+    display: flex;
+    gap: 8px;
+    min-height: 60px;
+    align-items: center;
+}
+
+/* ===================================================================
+   Game result (host declares the winner)
+   =================================================================== */
+
+.gameResultButtons {
+    display: flex;
+    justify-content: center;
+    gap: var(--gap-md);
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+/* ===================================================================
+   Bans — sit between the two team panels, each ban on its own side
+   =================================================================== */
+
+.bansMiddle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 18px 16px;
+    background: var(--steel);
+    border: 1px solid var(--steel-line);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, .25);
+    animation: fadeIn .3s ease both;
+}
+
+.bansCenterLabel {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #9a9fa8;
+}
+
+.bansSplit {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sideCenterIcon {
+    font-size: 18px;
+    flex-shrink: 0;
+    animation: pulseIcon 2.2s ease-in-out infinite;
+}
+
+.sideCenterIcon.banIcon {
+    color: var(--danger);
+}
+
+.sideCenterIcon.pickIcon {
+    color: var(--success);
+    font-size: 40px;
+    text-shadow: 0 0 18px rgba(62, 207, 142, .5);
+}
+
+.banColumn {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 84px;
+    min-height: 84px;
+}
+
+.banColumn.blueSide {
+    align-items: flex-end;
+}
+
+.banColumn.redSide {
+    align-items: flex-start;
+}
+
+/* ===================================================================
+   Picks — same blue/red split idea, kept as its own section
+   =================================================================== */
+
+.picksSection {
+    margin-bottom: var(--gap-lg);
+}
+
+.picksSplit {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 28px;
+}
+
+.pickColumn {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 240px;
+}
+
+.pickColumn.blueSide {
+    justify-content: flex-start;
+}
+
+.pickColumn.redSide {
+    justify-content: flex-end;
+}
+
+.pickColumn > div:nth-child(1) { animation-delay: .05s; }
+.pickColumn > div:nth-child(2) { animation-delay: .15s; }
+.pickColumn > div:nth-child(3) { animation-delay: .25s; }
+.pickColumn > div:nth-child(4) { animation-delay: .35s; }
+
+.historyPlaceholder {
+    color: #565b63;
+    font-size: 13px;
+}
+
+/* ===================================================================
+   Teams
+   =================================================================== */
+
+.teams {
+    display: flex;
+    justify-content: center;
+    gap: var(--gap-lg);
+    flex-wrap: wrap;
+    margin-bottom: var(--gap-lg);
+}
+
+.teamPanel {
+    width: 300px;
+    background: var(--steel);
+    padding: 22px;
+    border-radius: var(--radius);
+    border: 1px solid var(--steel-line);
+    border-top: 3px solid var(--steel-line);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .3);
+    transition: box-shadow .2s ease;
+}
+
+.teamPanel.blueSide {
+    border-top-color: var(--blue);
+}
+
+.teamPanel.redSide {
+    border-top-color: var(--orange);
+}
+
+.teamSlots {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.teamSlot {
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #1c2027;
+    border-radius: 8px;
+    border: 1px solid var(--steel-line);
+    padding: 6px 12px;
+    font-size: 14px;
+}
+
+.teamSlot.filled {
+    animation: slideFade .3s ease both;
+}
+
+.teamSlot.empty {
+    cursor: pointer;
+    color: #7a7f88;
+    border-style: dashed;
+    transition: transform .15s ease, border-color .15s ease, color .15s ease, background .15s ease;
+}
+
+.teamSlot.empty:hover {
+    transform: scale(1.02);
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(216, 178, 74, .06);
+}
+
+.neutralSection {
+    margin-bottom: var(--gap-lg);
+}
+
+#neutral {
+    display: flex;
+    justify-content: center;
+    gap: var(--gap-sm);
+    flex-wrap: wrap;
+}
+
+.neutralPlayer {
+    padding: 10px 18px;
+    background: var(--steel);
+    border: 1px solid var(--steel-line);
+    border-radius: 999px;
+    font-size: 13px;
+}
+
+/* ===================================================================
+   Character selection
+   =================================================================== */
+
+#characters {
+    margin: var(--gap-lg) auto;
+    max-width: 100%;
+    padding: 26px;
+    border-radius: var(--radius);
+    border: 1px solid var(--steel-line);
+    background: var(--steel);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, .3);
+    animation: fadeIn .25s ease both;
+}
+
+#characters.active.blueSide {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 1px var(--blue), 0 0 30px rgba(47, 111, 228, .25);
+}
+
+#characters.active.redSide {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 1px var(--orange), 0 0 30px rgba(226, 121, 15, .25);
+}
+
+#characterGrid {
+    margin: 18px 0;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 28px;
+}
+
+.factionSection {
+    flex: 0 0 auto;
+}
+
+.factionHeading {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #9a9fa8;
+    text-align: center;
+    margin: 0 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--steel-line);
+}
+
+.factionGrid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
+    gap: var(--gap-sm);
+    width: 232px;
+}
+
+.character {
+    width: 110px;
+    height: 110px;
+    padding: 0;
+    overflow: hidden;
+    background: transparent;
+    animation: charPop .35s ease both;
+}
+
+.character:nth-child(1) { animation-delay: 0s; }
+.character:nth-child(2) { animation-delay: .03s; }
+.character:nth-child(3) { animation-delay: .06s; }
+.character:nth-child(4) { animation-delay: .09s; }
+.character:nth-child(5) { animation-delay: .12s; }
+.character:nth-child(6) { animation-delay: .15s; }
+.character:nth-child(7) { animation-delay: .18s; }
+.character:nth-child(8) { animation-delay: .21s; }
+.character:nth-child(9) { animation-delay: .24s; }
+.character:nth-child(10) { animation-delay: .27s; }
+
+.character:disabled {
+    opacity: .35;
+}
+
+.character:disabled .charCard {
+    filter: grayscale(1);
+}
+
+.character:hover:not(:disabled):not(.selected) {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .4), 0 0 0 1px rgba(216, 178, 74, .45);
+}
+
+.character.selected {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px var(--gold), 0 6px 16px rgba(216, 178, 74, .3);
+    transform: translateY(-2px);
+    animation: selectPulse 1.4s ease-in-out infinite;
+}
+
+/* ===================================================================
+   Character card — shared "hero tile" used by the selection grid, the
+   ban/pick history, and the final results. Works as a plain gradient
+   tile with a name label until real artwork is dropped in (see
+   characters.js's characterImageSrc doc comment).
+   =================================================================== */
+
+.charCard {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    background: linear-gradient(160deg, #2a2f38, #14171c);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    animation: fadeIn .3s ease both;
+}
+
+.charCard.md {
+    width: 110px;
+    height: 110px;
+}
+
+.charCard.sm {
+    width: 84px;
+    height: 84px;
+}
+
+.charArt {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.charLabel {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    padding: 6px 4px 5px;
+    background: linear-gradient(to top, rgba(0, 0, 0, .85), transparent);
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: .5px;
+    color: #f2f2f0;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#confirmPick {
+    animation: confirmPulse 1.6s ease-in-out infinite;
+}
+
+/* ===================================================================
+   Match summary — shown once the match is decided
+   =================================================================== */
+
+#matchSummary {
+    max-width: 640px;
+    margin: var(--gap-lg) auto;
+    animation: fadeIn .4s ease both;
+}
+
+.mapHistoryList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mapHistoryRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 18px;
+    background: var(--steel);
+    border: 1px solid var(--steel-line);
+    border-left: 4px solid var(--gold);
+    border-radius: 8px;
+    font-size: 14px;
+    animation: slideFade .3s ease both;
+}
+
+.mapHistoryRow.blueSide {
+    border-left-color: var(--blue);
+}
+
+.mapHistoryRow.redSide {
+    border-left-color: var(--orange);
+}
+
+.mapHistoryGame {
+    font-family: var(--font-display);
+    letter-spacing: 1px;
+    color: #9a9fa8;
+    flex: 0 0 80px;
+    text-align: left;
+}
+
+.mapHistoryMap {
+    flex: 1;
+    text-align: left;
+    color: #f2f2f0;
+}
+
+.mapHistoryWinner {
+    font-weight: 600;
+}
+
+/* ===================================================================
+   Keyframes
+   =================================================================== */
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideFade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes crownPop {
+    0% { transform: scale(0.3) rotate(-15deg); opacity: 0; }
+    60% { transform: scale(1.3) rotate(6deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes pulseBlue {
+    0%, 100% { box-shadow: 0 0 0 rgba(47, 111, 228, 0); }
+    50% { box-shadow: 0 0 24px rgba(47, 111, 228, .35); }
+}
+
+@keyframes pulseOrange {
+    0%, 100% { box-shadow: 0 0 0 rgba(226, 121, 15, 0); }
+    50% { box-shadow: 0 0 24px rgba(226, 121, 15, .35); }
+}
+
+@keyframes shimmer {
+    from { background-position: 0% center; }
+    to { background-position: 200% center; }
+}
+
+@keyframes pulseIcon {
+    0%, 100% { transform: scale(1); opacity: .85; }
+    50% { transform: scale(1.15); opacity: 1; }
+}
+
+@keyframes charPop {
+    from { opacity: 0; transform: translateY(8px) scale(.9); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes selectPulse {
+    0%, 100% { box-shadow: 0 0 0 2px var(--gold), 0 6px 16px rgba(216, 178, 74, .3); }
+    50% { box-shadow: 0 0 0 3px var(--gold), 0 0 26px rgba(216, 178, 74, .6); }
+}
+
+@keyframes confirmPulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(216, 178, 74, 0); }
+    50% { box-shadow: 0 0 22px rgba(216, 178, 74, .55); }
+}
+
+.fadeIn {
+    animation: fadeIn .3s ease both;
+}
+
+/* ===================================================================
+   Reveal animation — shown big & centered the instant a character or
+   map is banned/picked, then flown (via JS-driven left/top/width/
+   height transitions) to its actual resting slot. See app.js's
+   flyToTarget()/animateReveal().
+   =================================================================== */
+
+.revealOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    pointer-events: none;
+    background: rgba(7, 8, 10, 0);
+    transition: background .3s ease;
+}
+
+.revealOverlay.dim {
+    background: rgba(7, 8, 10, .6);
+}
+
+.revealCard {
+    position: fixed;
+    border-radius: 12px;
+    overflow: hidden;
+    background: linear-gradient(160deg, #2a2f38, #14171c);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .6), 0 0 0 2px var(--gold);
+}
+
+.revealArt {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.revealLabel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+    padding: 10px 8px;
+    background: linear-gradient(to top, rgba(0, 0, 0, .9), transparent);
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 1px;
+    color: #fff;
+    text-align: center;
+}

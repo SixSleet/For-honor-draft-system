@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>For Honor Draft</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- Fixed top-left "Player: Name" badge -->
+    <div id="playerDisplay" hidden></div>
+
+    <div id="home">
+
+        <div class="homeCard fadeIn">
+
+            <h1 class="heroTitle">⚔ For Honor Draft ⚔</h1>
+            <p class="tagline">Assemble your warband and settle it on the field.</p>
+
+            <label class="fieldLabel" for="name">Your name</label>
+            <input id="name" placeholder="e.g. Aramusha">
+
+            <div class="homeActions">
+
+                <div class="homeAction">
+                    <button id="create" class="primary">Create Lobby</button>
+                    <span class="hint">Start a new draft</span>
+                </div>
+
+                <div class="orDivider"><span>or</span></div>
+
+                <div class="homeAction">
+                    <input id="code" placeholder="Lobby code">
+                    <button id="join">Join Lobby</button>
+                    <span class="hint">Enter a friend's code</span>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div id="draft" hidden>
+
+        <h1 class="heroTitle">⚔ Draft Room ⚔</h1>
+
+        <h2 id="lobby"></h2>
+
+        <div class="lobbyControls">
+
+            <div id="hostControls" class="controlCard" hidden>
+                <h3>Host Controls</h3>
+
+                <div class="banConfig">
+                    <span class="fieldLabel">Bans per team</span>
+                    <div id="banCountToggle" class="banCountToggle">
+                        <button type="button" class="banOption" data-value="0">No Bans</button>
+                        <button type="button" class="banOption selected" data-value="1">1 Ban</button>
+                        <button type="button" class="banOption" data-value="2">2 Bans</button>
+                    </div>
+                </div>
+
+                <button id="startDraft" class="primary">Start Draft</button>
+            </div>
+
+            <!-- Hidden automatically once the draft starts -->
+            <div id="captainSection" class="controlCard">
+
+                <h3>Captain Selection</h3>
+
+                <div id="captains">
+                    <div id="blueCaptain" class="captainStatus blueSide">🔵 No Captain</div>
+                    <div id="redCaptain" class="captainStatus redSide">🔴 No Captain</div>
+                </div>
+
+                <button id="makeCaptain">Become Captain</button>
+
+            </div>
+
+        </div>
+
+        <div id="matchScore" class="matchScore" hidden></div>
+
+        <!-- Persistent destinations for the banned/current map reveal animations -->
+        <div id="mapStatusBar" class="mapStatusBar" hidden>
+            <div class="mapStatusGroup">
+                <span class="mapStatusLabel">Banned</span>
+                <div id="bannedMapsList" class="mapChipRow"></div>
+            </div>
+            <div class="mapStatusGroup">
+                <span class="mapStatusLabel">Current Map</span>
+                <div id="currentMapChip" class="mapChipRow"></div>
+            </div>
+        </div>
+
+        <div id="draftTurn" class="turnBanner">
+            <span class="turnTeam">Waiting for draft</span>
+        </div>
+
+        <div id="banPickStatus" class="statusBanner" hidden></div>
+
+        <!-- Map veto (once, before Game 1) and map pick (loser picks the next map) -->
+        <div id="mapSelection" hidden>
+            <h2 id="mapSelectionTitle">Choose a Map</h2>
+            <div id="mapGrid" class="mapGrid"></div>
+            <button id="confirmMap" class="primary" hidden>Confirm</button>
+        </div>
+
+        <!-- Host only: record who won the game that just finished -->
+        <div id="gameResultControls" class="controlCard" hidden>
+            <h3>Declare Winner</h3>
+            <div class="gameResultButtons">
+                <button id="blueWon" class="primary">🔵 Blue Won</button>
+                <button id="redWon" class="primary">🔴 Red Won</button>
+            </div>
+        </div>
+
+        <div class="teams">
+
+            <div class="teamPanel blueSide">
+                <h2>🔵 Blue Team</h2>
+                <div id="blue" class="teamSlots"></div>
+            </div>
+
+            <!-- Bans sit between the two teams, each ban on its own team's side -->
+            <div id="bansMiddle" class="bansMiddle">
+                <span class="bansCenterLabel">Bans</span>
+                <div class="bansSplit">
+                    <div id="blueBans" class="banColumn blueSide"></div>
+                    <span class="sideCenterIcon banIcon">🚫</span>
+                    <div id="redBans" class="banColumn redSide"></div>
+                </div>
+            </div>
+
+            <div class="teamPanel redSide">
+                <h2>🔴 Red Team</h2>
+                <div id="red" class="teamSlots"></div>
+            </div>
+
+        </div>
+
+        <!-- Picks: same blue/red split idea as the bans above, kept as its own separate section -->
+        <div id="picksSection" class="picksSection">
+            <h2>Picks</h2>
+            <div class="picksSplit">
+                <div id="bluePicks" class="pickColumn blueSide"></div>
+                <span class="sideCenterIcon pickIcon">⚔</span>
+                <div id="redPicks" class="pickColumn redSide"></div>
+            </div>
+        </div>
+
+        <div class="neutralSection">
+            <h2>Neutral Players</h2>
+            <div id="neutral"></div>
+        </div>
+
+        <div id="characters" hidden>
+            <h2>Choose Character</h2>
+            <div id="characterGrid"></div>
+            <button id="confirmPick" class="primary" hidden>Confirm</button>
+        </div>
+
+        <!-- Shown once the match is decided: final score + map-by-map results -->
+        <div id="matchSummary" hidden></div>
+
+        <button id="leaveLobby" class="ghostDanger">Leave Lobby</button>
+
+    </div>
+
+    <!-- Reveal animation: shows the just-banned/picked character or map
+         big and centered, then flies it to its resting slot -->
+    <div id="revealOverlay" class="revealOverlay" hidden>
+        <div id="revealCard" class="revealCard"></div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+
+</body>
+
+</html>
