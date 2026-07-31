@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Very light schema sanity-check on writes — this app has no user
+    // authentication (players are just a random client-generated ID in
+    // sessionStorage, not a verified identity), so these rules can't
+    // verify "this write is really coming from that player." What they
+    // DO stop: writing to any collection other than the two this app
+    // actually uses, and browsing/enumerating every lobby that exists.
+    function isValidDraft(data) {
+      return data.keys().hasAll(['hostID', 'status'])
+        && data.hostID is string
+        && data.status is string;
+    }
+
+    function isValidPlayer(data) {
+      return data.keys().hasAll(['id', 'name', 'team'])
+        && data.id is string
+        && data.name is string
+        && data.name.size() <= 40
+        && data.team is string;
+    }
+
+    match /drafts/{code} {
+      // Reading ONE specific lobby by its exact code (how "Join Lobby"
+      // works) is fine. Listing/browsing every lobby that exists is not
+      // — the 6-character code is meant to be the only way in.
+      allow get: if true;
+      allow list: if false;
+
+      allow create, update: if isValidDraft(request.resource.data);
+      allow delete: if true;
+
+      match /players/{playerId} {
+        allow get: if true;
+        allow list: if true; // the app queries this to count/build rosters within a lobby it already knows the code for
+        allow create, update: if isValidPlayer(request.resource.data);
+        allow delete: if true;
+      }
+    }
+
+    // This app uses nothing else — deny every other collection outright,
+    // so a stranger with this project's public config can't use it as
+    // free, unrestricted storage.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

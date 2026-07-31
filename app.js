@@ -264,6 +264,60 @@ function hideAllPhaseUI() {
     document.getElementById("picksSection").hidden = true;
 }
 
+// blueTeamName/redTeamName live on the same drafts/{code} doc throughout
+// the whole lobby -> match lifecycle, so this works whether it's given
+// the lobby doc or the match doc — falls back to the plain color name
+// until a captain sets something custom.
+function teamDisplayName(data, team) {
+    const name = team === "Blue" ? data?.blueTeamName : data?.redTeamName;
+    return name || team;
+}
+
+// ---------------------------------------------------------------------
+// Ban flash — a big red "BAN" announcement shown the instant a ban
+// phase begins, before that phase's selection UI becomes interactive.
+// ---------------------------------------------------------------------
+
+let lastBanFlashKey = null;
+
+function showBanFlash() {
+    return new Promise(resolve => {
+        const overlay = document.getElementById("banFlashOverlay");
+
+        overlay.hidden = false;
+        overlay.classList.remove("show");
+
+        requestAnimationFrame(() => {
+            overlay.classList.add("show");
+        });
+
+        setTimeout(() => {
+            overlay.classList.remove("show");
+
+            setTimeout(() => {
+                overlay.hidden = true;
+                resolve();
+            }, 300);
+        }, 900);
+    });
+}
+
+// Fires once per distinct ban step (keyed by status+game+turn, since
+// "turn" alone is reused across map veto and every game's character
+// draft), then resolves immediately for every other render of that
+// same step and for anything that isn't a ban at all.
+function maybeFlashBan(draft) {
+    if (draft.phase !== "Ban") return Promise.resolve();
+
+    const key = `${draft.status}:${draft.gameNumber ?? 0}:${draft.turn ?? 0}`;
+
+    if (key === lastBanFlashKey) return Promise.resolve();
+
+    lastBanFlashKey = key;
+
+    return showBanFlash();
+}
+
 // ---------------------------------------------------------------------
 // Lobby: create / join
 // ---------------------------------------------------------------------
@@ -342,6 +396,7 @@ function openLobby(code) {
 
     document.getElementById("home").hidden = true;
     document.getElementById("draft").hidden = false;
+    document.getElementById("leaveLobby").hidden = false;
 
     document.getElementById("lobby").innerHTML = "Lobby: " + code;
 
@@ -398,18 +453,46 @@ function listenPlayers(code) {
 }
 
 // Single render pass for everything the lobby doc + players collection
-// feed: team rosters, captain crowns/names, and the neutral bench.
-// Called after EVERY update from either Firestore listener.
+// feed: team rosters, captain crowns/names, team names, and the
+// spectator list. Called after EVERY update from either Firestore
+// listener.
 function renderLobbyUI() {
     renderTeam("blue", lastBlue, lastLobbyData?.blueCaptain);
     renderTeam("red", lastRed, lastLobbyData?.redCaptain);
     renderCaptainSummary(lastLobbyData, lastBlue, lastRed);
+    renderTeamNames(lastLobbyData);
 
+    document.getElementById("spectatorPanel").hidden = lastNeutral.length === 0;
     document.getElementById("neutral").innerHTML = lastNeutral
         .map(player => `<div class="neutralPlayer fadeIn">${player.name}</div>`)
         .join("");
 
     applyLobbyUIState();
+}
+
+// Team panel headings always show the custom name (falling back to
+// "Blue"/"Red"); the small inline editor under a heading is visible
+// only to that team's own captain, and only before the match starts.
+function renderTeamNames(lobby) {
+    document.getElementById("blueTeamHeading").textContent = `🔵 ${teamDisplayName(lobby, "Blue")}`;
+    document.getElementById("redTeamHeading").textContent = `🔴 ${teamDisplayName(lobby, "Red")}`;
+
+    const stillInLobby = draftStatus === "lobby";
+
+    document.getElementById("blueNameEdit").hidden = !(stillInLobby && lobby?.blueCaptain === playerID);
+    document.getElementById("redNameEdit").hidden = !(stillInLobby && lobby?.redCaptain === playerID);
+
+    const blueInput = document.getElementById("blueNameInput");
+    const redInput = document.getElementById("redNameInput");
+
+    // Don't stomp on the input while its own captain is mid-typing.
+    if (document.activeElement !== blueInput) {
+        blueInput.value = lobby?.blueTeamName || "";
+    }
+
+    if (document.activeElement !== redInput) {
+        redInput.value = lobby?.redTeamName || "";
+    }
 }
 
 function renderCaptainSummary(lobby, blue, red) {
@@ -451,6 +534,14 @@ function renderTeam(id, players, captainID) {
 }
 
 window.joinTeam = async function (team) {
+    // The draft can now start with just the two captains present, so
+    // partially-empty "+ Join" slots can persist into a live match —
+    // don't let anyone actually join a team once it's underway.
+    if (draftStatus !== "lobby") {
+        alert("The draft has already started");
+        return;
+    }
+
     const players = await getDocs(collection(db, "drafts", currentLobby, "players"));
 
     let count = 0;
@@ -530,6 +621,24 @@ document.getElementById("makeCaptain").onclick = async () => {
 };
 
 // ---------------------------------------------------------------------
+// Team names (each captain can rename their own team before the match starts)
+// ---------------------------------------------------------------------
+
+document.getElementById("saveBlueName").onclick = async () => {
+    const name = document.getElementById("blueNameInput").value.trim().slice(0, 20);
+
+    await updateDoc(doc(db, "drafts", currentLobby), { blueTeamName: name || "Blue" });
+    await touchActivity(currentLobby);
+};
+
+document.getElementById("saveRedName").onclick = async () => {
+    const name = document.getElementById("redNameInput").value.trim().slice(0, 20);
+
+    await updateDoc(doc(db, "drafts", currentLobby), { redTeamName: name || "Red" });
+    await touchActivity(currentLobby);
+};
+
+// ---------------------------------------------------------------------
 // Ban count / Best-of selectors (host only, chosen before Start Draft)
 // ---------------------------------------------------------------------
 
@@ -581,14 +690,12 @@ document.getElementById("startDraft").onclick = async () => {
     const lobby = (await getDoc(doc(db, "drafts", currentLobby))).data();
 
     if (
-        blue.length !== TEAM_SIZE ||
-        red.length !== TEAM_SIZE ||
         !lobby.blueCaptain ||
         !lobby.redCaptain ||
         !blue.some(p => p.id === lobby.blueCaptain) ||
         !red.some(p => p.id === lobby.redCaptain)
     ) {
-        alert(`Need ${TEAM_SIZE} players and exactly 1 captain per team, and each captain must be on their own team`);
+        alert("Both teams need their own captain before starting — the rest of the roster can fill in later");
         return;
     }
 
@@ -611,13 +718,14 @@ function renderDraft(draft) {
 
     if (draftStatus === "lobby") {
         // A brand new match is about to start (or none has yet) — make
-        // sure the next one's reveals animate fresh instead of treating
-        // its first bans/picks as "already seen".
+        // sure the next one's reveals/flashes animate fresh instead of
+        // treating its first bans/picks as "already seen".
         matchAnimationsReady = false;
         lastBansCount = 0;
         lastPicksCount = 0;
         lastMapBansCount = 0;
         lastMapPicksCount = 0;
+        lastBanFlashKey = null;
         return;
     }
 
@@ -703,45 +811,52 @@ function renderMapPhase(draft) {
     const isActingCaptain = draft.activePlayer === playerID;
     const title = document.getElementById("mapSelectionTitle");
     const isBan = draft.status === "mapVeto" && draft.phase === "Ban";
+    const activeTeamName = teamDisplayName(draft, draft.activeTeam);
 
     let bannerSubtitle;
     let waitingText;
+    let titleText;
 
     if (draft.status === "mapVeto") {
         if (isBan) {
             bannerSubtitle = "🚫 BANNING a Map";
-            waitingText = `🚫 ${draft.activeTeam} Captain is BANNING a map…`;
-            title.textContent = "🚫 Ban a Map";
+            waitingText = `🚫 ${activeTeamName} Captain is BANNING a map…`;
+            titleText = "🚫 Ban a Map";
         } else {
             bannerSubtitle = "Picking Game 1's Map";
-            waitingText = `${draft.activeTeam} Captain is picking Game 1's map…`;
-            title.textContent = "Pick Game 1's Map";
+            waitingText = `${activeTeamName} Captain is picking Game 1's map…`;
+            titleText = "Pick Game 1's Map";
         }
     } else {
         bannerSubtitle = `Game ${draft.gameNumber} — Picking Next Map`;
-        waitingText = `${draft.activeTeam} Captain (loser of the last game) is picking the next map…`;
-        title.textContent = `Pick Game ${draft.gameNumber}'s Map`;
+        waitingText = `${activeTeamName} Captain (loser of the last game) is picking the next map…`;
+        titleText = `Pick Game ${draft.gameNumber}'s Map`;
     }
 
-    setTurnBanner(draft.activeTeam, draft.activeTeam, bannerSubtitle, isBan ? "ban" : "pick");
+    setTurnBanner(draft.activeTeam, activeTeamName, bannerSubtitle, isBan ? "ban" : "pick");
 
     const mapSelection = document.getElementById("mapSelection");
     const statusArea = document.getElementById("banPickStatus");
 
-    if (isActingCaptain) {
-        mapSelection.hidden = false;
-        mapSelection.className = isBan ? "banPhase" : "";
-        renderMapGrid(draft);
-        statusArea.hidden = true;
-    } else {
-        mapSelection.hidden = true;
-        selectedMap = null;
-        document.getElementById("confirmMap").hidden = true;
+    // The "BAN" flash (if this is a new ban step) plays before either
+    // the interactive grid or the waiting banner shows up.
+    maybeFlashBan(draft).then(() => {
+        if (isActingCaptain) {
+            title.textContent = titleText;
+            mapSelection.hidden = false;
+            mapSelection.className = isBan ? "banPhase" : "";
+            renderMapGrid(draft);
+            statusArea.hidden = true;
+        } else {
+            mapSelection.hidden = true;
+            selectedMap = null;
+            document.getElementById("confirmMap").hidden = true;
 
-        statusArea.hidden = false;
-        statusArea.className = `statusBanner fadeIn ${draft.activeTeam.toLowerCase()}Side${isBan ? " banPhase" : ""}`;
-        statusArea.innerHTML = waitingText;
-    }
+            statusArea.hidden = false;
+            statusArea.className = `statusBanner fadeIn ${draft.activeTeam.toLowerCase()}Side${isBan ? " banPhase" : ""}`;
+            statusArea.innerHTML = waitingText;
+        }
+    });
 }
 
 function renderMapGrid(draft) {
@@ -805,6 +920,9 @@ function renderGameResult(draft) {
     const controls = document.getElementById("gameResultControls");
     const statusArea = document.getElementById("banPickStatus");
 
+    document.getElementById("blueWon").textContent = `🔵 ${teamDisplayName(draft, "Blue")} Won`;
+    document.getElementById("redWon").textContent = `🔴 ${teamDisplayName(draft, "Red")} Won`;
+
     if (isHost) {
         controls.hidden = false;
         statusArea.hidden = true;
@@ -833,32 +951,37 @@ document.getElementById("redWon").onclick = async () => {
 function renderCharacterDraftPhase(draft) {
     const isCaptainTurn = draft.activePlayer === playerID;
     const isBan = draft.phase === "Ban";
+    const activeTeamName = teamDisplayName(draft, draft.activeTeam);
 
     const phaseLabel = isBan ? "🚫 BANNING" : "Pick Phase";
     const mapLabel = draft.currentMap ? ` · ${draft.currentMap}` : "";
 
-    setTurnBanner(draft.activeTeam, draft.activeTeam, phaseLabel + mapLabel, isBan ? "ban" : "pick");
+    setTurnBanner(draft.activeTeam, activeTeamName, phaseLabel + mapLabel, isBan ? "ban" : "pick");
 
     const charactersArea = document.getElementById("characters");
     const statusArea = document.getElementById("banPickStatus");
 
-    if (isCaptainTurn) {
-        charactersArea.hidden = false;
-        charactersArea.className = `active ${draft.activeTeam.toLowerCase()}Side${isBan ? " banPhase" : ""}`;
-        statusArea.hidden = true;
+    // The "BAN" flash (if this is a new ban step) plays before either
+    // the character grid or the waiting banner shows up.
+    maybeFlashBan(draft).then(() => {
+        if (isCaptainTurn) {
+            charactersArea.hidden = false;
+            charactersArea.className = `active ${draft.activeTeam.toLowerCase()}Side${isBan ? " banPhase" : ""}`;
+            statusArea.hidden = true;
 
-        renderCharacterButtons(draft);
-    } else {
-        charactersArea.hidden = true;
-        selectedCharacter = null;
-        document.getElementById("confirmPick").hidden = true;
+            renderCharacterButtons(draft);
+        } else {
+            charactersArea.hidden = true;
+            selectedCharacter = null;
+            document.getElementById("confirmPick").hidden = true;
 
-        statusArea.hidden = false;
-        statusArea.className = `statusBanner fadeIn ${draft.activeTeam.toLowerCase()}Side${isBan ? " banPhase" : ""}`;
-        statusArea.innerHTML = `${draft.activeTeam} Captain is ${
-            isBan ? "🚫 BANNING…" : "picking…"
-        }`;
-    }
+            statusArea.hidden = false;
+            statusArea.className = `statusBanner fadeIn ${draft.activeTeam.toLowerCase()}Side${isBan ? " banPhase" : ""}`;
+            statusArea.innerHTML = `${activeTeamName} Captain is ${
+                isBan ? "🚫 BANNING…" : "picking…"
+            }`;
+        }
+    });
 }
 
 function renderCharacterButtons(draft) {
@@ -974,8 +1097,9 @@ function renderDraftHistory(draft) {
 
 function renderMatchFinished(draft) {
     const matchWinner = (draft.scoreBlue ?? 0) > (draft.scoreRed ?? 0) ? "Blue" : "Red";
+    const winnerName = teamDisplayName(draft, matchWinner);
 
-    setTurnBanner(matchWinner, `${matchWinner} Team Wins the Match!`, `Final Score ${draft.scoreBlue ?? 0} — ${draft.scoreRed ?? 0}`);
+    setTurnBanner(matchWinner, `${winnerName} Wins the Match!`, `Final Score ${draft.scoreBlue ?? 0} — ${draft.scoreRed ?? 0}`);
 
     const summary = document.getElementById("matchSummary");
 
@@ -990,7 +1114,7 @@ function renderMatchFinished(draft) {
                 <div class="mapHistoryRow ${entry.winner ? entry.winner.toLowerCase() + "Side" : ""}">
                     <span class="mapHistoryGame">Game ${entry.gameNumber}</span>
                     <span class="mapHistoryMap">${entry.map}</span>
-                    <span class="mapHistoryWinner">${entry.winner ? `${entry.winner === "Blue" ? "🔵" : "🔴"} ${entry.winner} Won` : "—"}</span>
+                    <span class="mapHistoryWinner">${entry.winner ? `${entry.winner === "Blue" ? "🔵" : "🔴"} ${teamDisplayName(draft, entry.winner)} Won` : "—"}</span>
                 </div>
             `).join("")}
         </div>

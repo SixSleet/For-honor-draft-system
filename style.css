@@ -57,14 +57,17 @@ body {
     margin: 0;
     min-height: 100vh;
     /* Blue fades to black at center, then to orange — the faction
-       split that carries through the whole draft room. */
-    background: linear-gradient(
-        to right,
-        var(--blue-deep) 0%,
-        var(--ink) 46%,
-        var(--ink) 54%,
-        var(--orange-deep) 100%
-    );
+       split that carries through the whole draft room — with a soft
+       vignette darkening the edges for a bit more depth. */
+    background:
+        radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, .35) 100%),
+        linear-gradient(
+            to right,
+            var(--blue-deep) 0%,
+            var(--ink) 46%,
+            var(--ink) 54%,
+            var(--orange-deep) 100%
+        );
     background-attachment: fixed;
     color: #f2f2f0;
     font-family: var(--font-body);
@@ -157,7 +160,6 @@ button.ghostDanger {
     background: transparent;
     border: 1px solid #6b2f2f;
     color: #d99;
-    margin-top: var(--gap-lg);
 }
 
 button.ghostDanger:hover {
@@ -217,6 +219,43 @@ input::placeholder {
     color: var(--gold);
     text-transform: none;
     letter-spacing: 1px;
+}
+
+/* Fixed top-right spectator list — same "floating badge" language as
+   the player display above, just anchored to the opposite corner. */
+.spectatorPanel {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 100;
+    background: rgba(14, 16, 20, .85);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--steel-line);
+    border-radius: 8px;
+    padding: 8px 16px;
+    max-width: 200px;
+    max-height: 220px;
+    overflow-y: auto;
+    animation: fadeInDown .35s ease both;
+}
+
+.spectatorLabel {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 11px;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    text-align: right;
+}
+
+/* Fixed bottom-left leave button, mirroring the two corner badges above */
+#leaveLobby {
+    position: fixed;
+    bottom: 14px;
+    left: 14px;
+    z-index: 100;
 }
 
 /* ===================================================================
@@ -792,6 +831,25 @@ input::placeholder {
     border-top-color: var(--orange);
 }
 
+.teamNameEdit {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.teamNameEdit input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 13px;
+}
+
+.teamNameEdit button {
+    padding: 8px 14px;
+    flex-shrink: 0;
+}
+
 .teamSlots {
     display: flex;
     flex-direction: column;
@@ -829,23 +887,20 @@ input::placeholder {
     background: rgba(216, 178, 74, .06);
 }
 
-.neutralSection {
-    margin-bottom: var(--gap-lg);
-}
-
 #neutral {
     display: flex;
-    justify-content: center;
-    gap: var(--gap-sm);
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
 }
 
 .neutralPlayer {
-    padding: 10px 18px;
-    background: var(--steel);
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, .05);
     border: 1px solid var(--steel-line);
     border-radius: 999px;
-    font-size: 13px;
+    font-size: 12px;
+    white-space: nowrap;
 }
 
 /* ===================================================================
@@ -1184,4 +1239,43 @@ input::placeholder {
     letter-spacing: 1px;
     color: #fff;
     text-align: center;
+}
+
+/* ===================================================================
+   Ban flash — big red "BAN" announcement the instant a ban phase
+   starts, before that phase's selection UI becomes interactive.
+   See app.js's showBanFlash()/maybeFlashBan().
+   =================================================================== */
+
+.banFlashOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(7, 8, 10, 0);
+    pointer-events: none;
+    transition: background .3s ease;
+}
+
+.banFlashOverlay.show {
+    background: rgba(7, 8, 10, .7);
+}
+
+.banFlashText {
+    font-family: var(--font-display);
+    font-size: clamp(48px, 12vw, 140px);
+    font-weight: 700;
+    letter-spacing: 10px;
+    color: var(--danger);
+    text-shadow: 0 0 40px rgba(214, 69, 69, .8), 0 0 90px rgba(214, 69, 69, .5);
+    opacity: 0;
+    transform: scale(.4) rotate(-3deg);
+    transition: opacity .3s ease, transform .3s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.banFlashOverlay.show .banFlashText {
+    opacity: 1;
+    transform: scale(1) rotate(-3deg);
 }

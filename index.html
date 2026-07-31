@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>For Honor Draft</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -14,6 +15,15 @@
 
     <!-- Fixed top-left "Player: Name" badge -->
     <div id="playerDisplay" hidden></div>
+
+    <!-- Fixed top-right spectator list -->
+    <div id="spectatorPanel" class="spectatorPanel" hidden>
+        <span class="spectatorLabel">Spectators</span>
+        <div id="neutral"></div>
+    </div>
+
+    <!-- Fixed bottom-left leave button -->
+    <button id="leaveLobby" class="ghostDanger" hidden>Leave Lobby</button>
 
     <div id="home">
 
@@ -134,7 +144,11 @@
         <div class="teams">
 
             <div class="teamPanel blueSide">
-                <h2>🔵 Blue Team</h2>
+                <h2 id="blueTeamHeading">🔵 Blue</h2>
+                <div id="blueNameEdit" class="teamNameEdit" hidden>
+                    <input type="text" id="blueNameInput" placeholder="Blue" maxlength="20">
+                    <button type="button" id="saveBlueName">✓</button>
+                </div>
                 <div id="blue" class="teamSlots"></div>
             </div>
 
@@ -149,7 +163,11 @@
             </div>
 
             <div class="teamPanel redSide">
-                <h2>🔴 Red Team</h2>
+                <h2 id="redTeamHeading">🔴 Red</h2>
+                <div id="redNameEdit" class="teamNameEdit" hidden>
+                    <input type="text" id="redNameInput" placeholder="Red" maxlength="20">
+                    <button type="button" id="saveRedName">✓</button>
+                </div>
                 <div id="red" class="teamSlots"></div>
             </div>
 
@@ -165,11 +183,6 @@
             </div>
         </div>
 
-        <div class="neutralSection">
-            <h2>Neutral Players</h2>
-            <div id="neutral"></div>
-        </div>
-
         <div id="characters" hidden>
             <h2>Choose Character</h2>
             <div id="characterGrid"></div>
@@ -179,14 +192,18 @@
         <!-- Shown once the match is decided: final score + map-by-map results -->
         <div id="matchSummary" hidden></div>
 
-        <button id="leaveLobby" class="ghostDanger">Leave Lobby</button>
-
     </div>
 
     <!-- Reveal animation: shows the just-banned/picked character or map
          big and centered, then flies it to its resting slot -->
     <div id="revealOverlay" class="revealOverlay" hidden>
         <div id="revealCard" class="revealCard"></div>
+    </div>
+
+    <!-- Big red "BAN" announcement shown right as a ban phase begins,
+         before the ban UI itself becomes interactive -->
+    <div id="banFlashOverlay" class="banFlashOverlay" hidden>
+        <span class="banFlashText">🚫 BAN</span>
     </div>
 
     <script type="module" src="app.js"></script>
