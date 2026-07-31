@@ -7,41 +7,51 @@ import { TEAM_SIZE } from "./config.js";
  * Teammates only spectate. So every step only needs a team, never an
  * individual player slot.
  *
- * Two independent rules combine to produce every step:
- *
- *   1. TEAM strictly alternates every single step, regardless of what
- *      type that step is (firstTeam always goes on step 0 — chosen by
- *      the host in Host Controls, defaults to Blue).
- *   2. The step TYPES follow a fixed template: every ban happens first
- *      (both teams alternating), then every pick (both teams
- *      alternating) — no bans occur once picking has started.
- *          Ban x banCount x 2, Pick x teamSize x 2
+ * banCount (0, 1 or 2 — Host Controls) is the number of separate ban
+ * ROUNDS, each a single ban per team (firstTeam bans, then the other
+ * team — chosen by the host, defaults to Blue). The teamSize*2 picks
+ * are split evenly across banCount pick blocks sitting after each ban
+ * round, so more ban rounds means more (shorter) breaks in the picks
+ * rather than one giant ban phase up front — this is what makes
+ * banCount=2 stay a "ban, pick some, ban again, pick the rest" match
+ * instead of collapsing into the same shape as banCount=1.
  *
  * e.g. for teamSize=4, firstTeam="Blue":
- *   banCount=0: P P P P P P P P                  (Blue P, Red P, Blue P, ...)
- *   banCount=1: B B P P P P P P P P               -> B1 B2 P1 P2 P1 P2 P1 P2 P1 P2
- *   banCount=2: B B B B P P P P P P P P            -> B1 B2 B1 B2 P1 P2 P1 P2 P1 P2 P1 P2
- * (B1/P1 = Blue ban/pick, B2/P2 = Red ban/pick — matches the reference
- * draft order exactly. Swap firstTeam to "Red" and every B1/P1 <-> B2/P2
- * label swaps too.)
+ *   banCount=0: P1 P2 P1 P2 P1 P2 P1 P2                    (no bans at all)
+ *   banCount=1: B1 B2 | P1 P2 P1 P2 P1 P2 P1 P2             (one ban round, then every pick)
+ *   banCount=2: B1 B2 | P1 P2 P1 P2 | B1 B2 | P1 P2 P1 P2   (two ban rounds, picks split between them)
+ * (B1/P1 = Blue ban/pick, B2/P2 = Red ban/pick. Swap firstTeam to "Red"
+ * and every B1/P1 <-> B2/P2 label swaps too.)
  *
  * teamSize defaults to config.TEAM_SIZE, so changing that one value
  * automatically produces a correctly-sized order (e.g. 4v4 = 4 pick
- * rounds per side instead of 2). banCount is chosen per-draft by the
- * host (Host Controls, 0/1/2) and defaults to 1 to match prior behavior.
+ * rounds per side instead of 2) — as long as teamSize*2 divides evenly
+ * by banCount, which holds for every banCount Host Controls offers.
  */
 export function getDraftOrder(teamSize = TEAM_SIZE, banCount = 1, firstTeam = "Blue") {
     const secondTeam = firstTeam === "Blue" ? "Red" : "Blue";
+    const totalPicks = teamSize * 2;
 
-    const typeTemplate = [
-        ...Array(banCount * 2).fill("Ban"),
-        ...Array(teamSize * 2).fill("Pick")
-    ];
+    if (banCount === 0) {
+        return Array.from({ length: totalPicks }, (_, i) => ({
+            type: "Pick",
+            team: i % 2 === 0 ? firstTeam : secondTeam
+        }));
+    }
 
-    return typeTemplate.map((type, i) => ({
-        type,
-        team: i % 2 === 0 ? firstTeam : secondTeam
-    }));
+    const picksPerBlock = totalPicks / banCount;
+    const order = [];
+
+    for (let round = 0; round < banCount; round++) {
+        order.push({ type: "Ban", team: firstTeam });
+        order.push({ type: "Ban", team: secondTeam });
+
+        for (let p = 0; p < picksPerBlock; p++) {
+            order.push({ type: "Pick", team: p % 2 === 0 ? firstTeam : secondTeam });
+        }
+    }
+
+    return order;
 }
 
 // Kept for compatibility with any code that still imports the static array
