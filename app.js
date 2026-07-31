@@ -14,6 +14,7 @@ import {
 import { charactersByFaction, characterImageSrc } from "./characters.js";
 import { maps, mapImageSrc } from "./maps.js";
 import { TEAM_SIZE, INACTIVITY_MS, DEFAULT_BEST_OF } from "./config.js";
+import { showToast } from "./toast.js";
 
 import {
     createDraft,
@@ -65,6 +66,12 @@ let lastDraftData = null;
 // guards the flash: keyed by status+game+turn, so a 500ms timer tick
 // can never fire the random auto-pick twice for the same step.
 let lastAutoPickKey = null;
+
+// Guards the auto-scroll-to-selection below: fires once per distinct
+// turn instead of on every re-render of the same turn (e.g. a
+// reconnect), so it can't repeatedly yank the page back down on
+// someone who's deliberately scrolled elsewhere mid-turn.
+let lastAutoScrollKey = null;
 
 // Tracks the current match status ("lobby" | "mapVeto" | "draft" |
 // "gameResult" | "mapPick" | "finished") so the captain-selection UI
@@ -367,6 +374,19 @@ function maybeFlashPhase(draft, kind) {
     return showPhaseFlash(kind === "ban" ? "🚫 BAN" : "⚔ PICK", kind);
 }
 
+// Scrolls the acting captain to their own selection grid the instant
+// it's their turn, so a new ban/pick phase starting further down the
+// page (below the fold) doesn't go unnoticed. Only for the ACTING
+// captain — everyone else is just watching, not expected to act.
+function autoScrollToTurn(draft, targetEl) {
+    const key = `${draft.status}:${draft.gameNumber ?? 0}:${draft.turn ?? 0}`;
+
+    if (key === lastAutoScrollKey) return;
+
+    lastAutoScrollKey = key;
+    targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 // Big victory announcement, once per match, the instant the whole
 // best-of-N match is decided (not per-game — see declareGameWinner's
 // "finished" transition). Reuses the same flash overlay, colored by the
@@ -474,7 +494,7 @@ document.getElementById("create").onclick = async () => {
     const name = document.getElementById("name").value.trim();
 
     if (!name) {
-        alert("Enter your name first");
+        showToast("Enter your name first");
         return;
     }
 
@@ -501,25 +521,25 @@ document.getElementById("join").onclick = async () => {
     const code = document.getElementById("code").value.trim().toUpperCase();
 
     if (!name) {
-        alert("Enter your name first");
+        showToast("Enter your name first");
         return;
     }
 
     if (!code) {
-        alert("Enter a lobby code");
+        showToast("Enter a lobby code");
         return;
     }
 
     const lobby = await getDoc(doc(db, "drafts", code));
 
     if (!lobby.exists()) {
-        alert("Lobby not found");
+        showToast("Lobby not found");
         return;
     }
 
     if (isExpired(lobby.data())) {
         await deleteLobbyCompletely(code);
-        alert("That lobby has expired");
+        showToast("That lobby has expired");
         return;
     }
 
@@ -729,7 +749,7 @@ window.joinTeam = async function (team) {
     // partially-empty "+ Join" slots can persist into a live match —
     // don't let anyone actually join a team once it's underway.
     if (draftStatus !== "lobby") {
-        alert("The draft has already started");
+        showToast("The draft has already started");
         return;
     }
 
@@ -742,7 +762,7 @@ window.joinTeam = async function (team) {
     });
 
     if (count >= TEAM_SIZE) {
-        alert("Team full");
+        showToast("Team full");
         return;
     }
 
@@ -779,12 +799,12 @@ document.getElementById("makeCaptain").onclick = async () => {
     const player = playerSnap.data();
 
     if (!player) {
-        alert("Player not found");
+        showToast("Player not found");
         return;
     }
 
     if (player.team === "Neutral") {
-        alert("Join Blue or Red team first");
+        showToast("Join Blue or Red team first");
         return;
     }
 
@@ -793,7 +813,7 @@ document.getElementById("makeCaptain").onclick = async () => {
     const lobby = lobbySnap.data();
 
     if (lobby.blueCaptain === playerID || lobby.redCaptain === playerID) {
-        alert("You are already a captain");
+        showToast("You are already a captain");
         return;
     }
 
@@ -801,7 +821,7 @@ document.getElementById("makeCaptain").onclick = async () => {
     const readyField = player.team === "Blue" ? "blueReady" : "redReady";
 
     if (lobby[captainField]) {
-        alert("This team already has a captain");
+        showToast("This team already has a captain");
         return;
     }
 
@@ -921,12 +941,12 @@ document.getElementById("startDraft").onclick = async () => {
         !blue.some(p => p.id === lobby.blueCaptain) ||
         !red.some(p => p.id === lobby.redCaptain)
     ) {
-        alert("Both teams need their own captain before starting — the rest of the roster can fill in later");
+        showToast("Both teams need their own captain before starting — the rest of the roster can fill in later");
         return;
     }
 
     if (!lobby.blueReady || !lobby.redReady) {
-        alert("Both team captains need to Ready Up before starting");
+        showToast("Both team captains need to Ready Up before starting");
         return;
     }
 
@@ -960,6 +980,7 @@ function renderDraft(draft) {
         lastMapPicksCount = 0;
         lastPhaseFlashKey = null;
         lastAutoPickKey = null;
+        lastAutoScrollKey = null;
         matchWinFlashShown = false;
         return;
     }
@@ -1099,6 +1120,7 @@ function renderMapPhase(draft) {
             mapSelection.className = isBan ? "banPhase" : "";
             renderMapGrid(draft);
             statusArea.hidden = true;
+            autoScrollToTurn(draft, mapSelection);
         } else {
             mapSelection.hidden = true;
             selectedMap = null;
@@ -1222,6 +1244,7 @@ function renderCharacterDraftPhase(draft) {
             statusArea.hidden = true;
 
             renderCharacterButtons(draft);
+            autoScrollToTurn(draft, charactersArea);
         } else {
             charactersArea.hidden = true;
             selectedCharacter = null;

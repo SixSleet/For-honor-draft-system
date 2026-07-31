@@ -271,6 +271,67 @@ input::placeholder {
 }
 
 /* ===================================================================
+   Toasts — replaces alert() everywhere (see toast.js). Bottom-right,
+   stacks newest-on-top, auto-dismisses.
+   =================================================================== */
+
+.toastContainer {
+    position: fixed;
+    right: 16px;
+    bottom: 50px;
+    z-index: 600;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    max-width: 320px;
+    background: rgba(21, 24, 29, .96);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--steel-line);
+    border-left: 4px solid var(--danger);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #f2f2f0;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, .45);
+    opacity: 0;
+    transform: translateX(24px) scale(.96);
+    transition: opacity .25s ease, transform .3s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+}
+
+.toast.info {
+    border-left-color: var(--gold);
+}
+
+.toastIcon {
+    flex-shrink: 0;
+    font-size: 15px;
+    line-height: 1.45;
+    color: var(--danger);
+}
+
+.toast.info .toastIcon {
+    color: var(--gold);
+}
+
+.toastMsg {
+    flex: 1;
+}
+
+/* ===================================================================
    Home screen
    =================================================================== */
 

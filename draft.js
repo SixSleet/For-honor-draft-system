@@ -11,6 +11,7 @@ import { TEAM_SIZE, INACTIVITY_MS, FINISHED_TTL_MS, TURN_TIME_MS } from "./confi
 import { getDraftOrder } from "./draftOrder.js";
 import { getMapVetoOrder } from "./mapVeto.js";
 import { createInitialMatch, resetGameState } from "./draftState.js";
+import { showToast } from "./toast.js";
 
 function inactivityExpiry() {
     return Timestamp.fromMillis(Date.now() + INACTIVITY_MS);
@@ -71,7 +72,7 @@ export async function selectCharacter(lobby, playerID, character) {
     if (!draft || draft.status !== "draft") return;
 
     if (draft.activePlayer !== playerID) {
-        alert("Only your team's captain can do this");
+        showToast("Only your team's captain can do this");
         return;
     }
 
@@ -80,7 +81,7 @@ export async function selectCharacter(lobby, playerID, character) {
         draft.picks.some(p => p.character === character);
 
     if (alreadyUsed) {
-        alert("Character unavailable");
+        showToast("Character unavailable");
         return;
     }
 
@@ -179,7 +180,7 @@ export async function selectMap(lobby, playerID, map) {
     if (!draft || (draft.status !== "mapVeto" && draft.status !== "mapPick")) return;
 
     if (draft.activePlayer !== playerID) {
-        alert("Only your team's captain can do this");
+        showToast("Only your team's captain can do this");
         return;
     }
 
@@ -188,7 +189,7 @@ export async function selectMap(lobby, playerID, map) {
         (draft.mapHistory || []).some(h => h.map === map);
 
     if (unavailable) {
-        alert("Map unavailable");
+        showToast("Map unavailable");
         return;
     }
 
