@@ -29,3 +29,14 @@ export const DEFAULT_BEST_OF = 3;
 // auto-selects a random available option on their behalf. Refreshed on
 // every turn advance (see draft.js's turnExpiry()).
 export const TURN_TIME_MS = 2 * 60 * 1000; // 2 minutes
+
+// Presence: there's no server, so "is this player still here" is done
+// with a heartbeat — every connected client pings its own player doc
+// this often. Any OTHER client that notices a player hasn't pinged in
+// STALE_PLAYER_MS treats them as disconnected (closed the browser
+// without clicking Leave Lobby) and removes them — see app.js's
+// listenPlayers(). Kept well below STALE_PLAYER_MS so a couple of
+// missed pings (a slow network tick, a backgrounded tab) don't get
+// someone removed by mistake.
+export const HEARTBEAT_MS = 20 * 1000; // 20 seconds
+export const STALE_PLAYER_MS = 60 * 1000; // 60 seconds

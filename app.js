@@ -13,7 +13,7 @@ import {
 
 import { charactersByFaction, characterImageSrc } from "./characters.js";
 import { maps, mapImageSrc } from "./maps.js";
-import { TEAM_SIZE, INACTIVITY_MS, DEFAULT_BEST_OF } from "./config.js";
+import { TEAM_SIZE, INACTIVITY_MS, DEFAULT_BEST_OF, HEARTBEAT_MS, STALE_PLAYER_MS } from "./config.js";
 import { showToast } from "./toast.js";
 
 import {
@@ -95,6 +95,10 @@ let lastLobbyData = null;
 let lastBlue = [];
 let lastRed = [];
 let lastNeutral = [];
+
+// This client's own presence heartbeat (see startHeartbeat()) — kept so
+// leaveLobby() can stop it before reloading the page.
+let heartbeatInterval = null;
 
 // ---------------------------------------------------------------------
 // Helpers
@@ -554,8 +558,35 @@ async function addPlayer(code, name) {
     await setDoc(doc(db, "drafts", code, "players", playerID), {
         id: playerID,
         name: name,
-        team: "Neutral"
+        team: "Neutral",
+        lastSeen: Timestamp.now()
     });
+}
+
+// ---------------------------------------------------------------------
+// Presence — there's no server, so "is this player still here" is done
+// with a heartbeat: this client pings its own player doc every
+// HEARTBEAT_MS while it has a lobby open. Any OTHER connected client
+// treats a player whose lastSeen is older than STALE_PLAYER_MS as
+// disconnected (browser closed without clicking Leave Lobby) — see
+// listenPlayers() below.
+// ---------------------------------------------------------------------
+
+function startHeartbeat() {
+    stopHeartbeat();
+
+    heartbeatInterval = setInterval(() => {
+        updateDoc(doc(db, "drafts", currentLobby, "players", playerID), {
+            lastSeen: Timestamp.now()
+        }).catch(() => {});
+
+        touchActivity(currentLobby);
+    }, HEARTBEAT_MS);
+}
+
+function stopHeartbeat() {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
 }
 
 function openLobby(code) {
@@ -576,6 +607,7 @@ function openLobby(code) {
     listenPlayers(code);
     listenLobby(code);
     listenDraft(code, renderDraft);
+    startHeartbeat();
 }
 
 document.getElementById("lobby").onclick = () => {
@@ -614,9 +646,23 @@ function listenPlayers(code) {
         const blue = [];
         const red = [];
         const neutral = [];
+        const stalePlayers = [];
+        const now = Date.now();
 
         snapshot.forEach(playerDoc => {
             const data = playerDoc.data();
+
+            // Never treat myself as stale, even if my own first heartbeat
+            // hasn't landed yet — I know I'm here. Everyone else is stale
+            // if they've missed too many heartbeats (browser closed
+            // without clicking Leave Lobby) — or never had one at all.
+            const isStale = data.id !== playerID
+                && (!data.lastSeen || now - data.lastSeen.toMillis() > STALE_PLAYER_MS);
+
+            if (isStale) {
+                stalePlayers.push(data);
+                return;
+            }
 
             playerNames[data.id] = data.name;
 
@@ -630,7 +676,46 @@ function listenPlayers(code) {
         lastNeutral = neutral;
 
         renderLobbyUI();
+
+        if (stalePlayers.length) {
+            removeStalePlayers(code, stalePlayers);
+        } else if (!blue.length && !red.length && !neutral.length) {
+            // Nobody live in this lobby at all — nothing left to keep it
+            // around for.
+            deleteLobbyCompletely(code).catch(() => {});
+        }
     });
+}
+
+// Best-effort cleanup, run by whichever client's browser happens to
+// notice — deletes each disconnected player's doc, and (only pre-match
+// — see below) if they were a captain, frees that captaincy back up.
+async function removeStalePlayers(code, stalePlayers) {
+    const lobbyRef = doc(db, "drafts", code);
+    const lobbySnap = await getDoc(lobbyRef).catch(() => null);
+    const lobby = lobbySnap?.data();
+
+    // Once a match is underway, draft.js's turn logic reads
+    // blueCaptain/redCaptain straight off the match doc to hand off
+    // every turn — clearing it mid-match would leave activePlayer
+    // pointing at a captaincy nobody holds and stall the match forever.
+    // A disconnected captain's turn is already handled by the 2-minute
+    // auto-pick timeout instead, so only touch captaincy pre-match.
+    const canResetCaptaincy = lobby?.status === "lobby";
+
+    for (const player of stalePlayers) {
+        await deleteDoc(doc(db, "drafts", code, "players", player.id)).catch(() => {});
+
+        if (!canResetCaptaincy) continue;
+
+        if (lobby.blueCaptain === player.id) {
+            await updateDoc(lobbyRef, { blueCaptain: null, blueReady: false }).catch(() => {});
+        }
+
+        if (lobby.redCaptain === player.id) {
+            await updateDoc(lobbyRef, { redCaptain: null, redReady: false }).catch(() => {});
+        }
+    }
 }
 
 // Single render pass for everything the lobby doc + players collection
@@ -1412,18 +1497,27 @@ function renderMatchFinished(draft) {
 
 document.getElementById("leaveLobby").onclick = async () => {
     if (currentLobby) {
+        stopHeartbeat();
+
         await deleteDoc(doc(db, "drafts", currentLobby, "players", playerID)).catch(() => {});
 
-        const lobbyRef = doc(db, "drafts", currentLobby);
-        const lobbySnap = await getDoc(lobbyRef).catch(() => null);
-        const lobby = lobbySnap?.data();
+        const remaining = await getDocs(collection(db, "drafts", currentLobby, "players")).catch(() => null);
 
-        if (lobby?.blueCaptain === playerID) {
-            await updateDoc(lobbyRef, { blueCaptain: null, blueReady: false }).catch(() => {});
-        }
+        if (remaining && remaining.empty) {
+            // Last one out — nothing left to keep this lobby around for.
+            await deleteLobbyCompletely(currentLobby).catch(() => {});
+        } else {
+            const lobbyRef = doc(db, "drafts", currentLobby);
+            const lobbySnap = await getDoc(lobbyRef).catch(() => null);
+            const lobby = lobbySnap?.data();
 
-        if (lobby?.redCaptain === playerID) {
-            await updateDoc(lobbyRef, { redCaptain: null, redReady: false }).catch(() => {});
+            if (lobby?.blueCaptain === playerID) {
+                await updateDoc(lobbyRef, { blueCaptain: null, blueReady: false }).catch(() => {});
+            }
+
+            if (lobby?.redCaptain === playerID) {
+                await updateDoc(lobbyRef, { redCaptain: null, redReady: false }).catch(() => {});
+            }
         }
     }
 
