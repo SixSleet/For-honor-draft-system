@@ -283,7 +283,12 @@ export async function confirmMapAction(lobby, playerID) {
  * Host-only action (gated client-side, like startDraft): records which
  * team won the just-finished game, updates the match score, and either
  * ends the match (a team reached the winsNeeded for this match's
- * bestOf) or hands the next map pick to the loser.
+ * bestOf) or hands the next map pick AND the next game's first
+ * ban/pick to the loser — losing a game gives that team first move in
+ * the following draft, same competitive-fairness idea as "loser picks
+ * the next map." firstTeam starts as whatever the host chose in Host
+ * Controls (used for the map veto and Game 1's draft, before anyone's
+ * lost anything) and then updates after every decided game.
  */
 export async function declareGameWinner(lobby, winnerTeam) {
     const ref = doc(db, "drafts", lobby);
@@ -325,6 +330,7 @@ export async function declareGameWinner(lobby, winnerTeam) {
         gameNumber: (draft.gameNumber || 1) + 1,
         activeTeam: loserTeam,
         activePlayer: loserTeam === "Blue" ? draft.blueCaptain : draft.redCaptain,
+        firstTeam: loserTeam,
         pendingMapAction: null,
         turnDeadline: turnExpiry(),
         expiresAt: inactivityExpiry()

@@ -22,8 +22,10 @@
  * draft order later via getDraftOrder(TEAM_SIZE, banCount, firstTeam),
  * confirmMapAction() can do the same for getMapVetoOrder(firstTeam),
  * and declareGameWinner() knows how many wins (Math.ceil(bestOf / 2))
- * end the match. firstTeam goes first in the map veto AND in every
- * game's character draft — it doesn't change across games.
+ * end the match. firstTeam goes first in the map veto and Game 1's
+ * draft — after that, declareGameWinner() overwrites it with the
+ * LOSER of each game, so losing a game earns first ban/pick in the
+ * next one (same idea as "loser picks the next map").
  */
 export function createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCaptain, banCount = 1, bestOf = 3, firstTeam = "Blue") {
     return {
@@ -68,8 +70,11 @@ export function createInitialMatch(bluePlayers, redPlayers, blueCaptain, redCapt
  * Fields to reset on the match doc at the start of every game's
  * character draft — both the very first one (right after the map
  * veto) and every subsequent one (right after the loser picks the
- * next map). Captains/rosters/banCount/firstTeam are untouched since
- * they don't change between games.
+ * next map). Captains/rosters/banCount are untouched since they don't
+ * change between games. firstTeam is passed in fresh each time — by
+ * this point declareGameWinner() has already set it to the previous
+ * game's loser (except for Game 1, where it's still the host's
+ * original choice).
  */
 export function resetGameState(blueCaptain, redCaptain, banCount, firstTeam = "Blue") {
     return {
